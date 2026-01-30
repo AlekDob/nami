@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+bun.lock
+
+# Build output
+dist/
+bin/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# User data (memory, soul, skills, jobs)
+data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Quack agent config (local only)
+.quack/
