@@ -2,10 +2,12 @@ import {
   Client,
   GatewayIntentBits,
   Events,
+  Partials,
   REST,
   Routes,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
+  type Message,
 } from 'discord.js';
 import type { ModelMessage } from 'ai';
 import type { Agent } from '../agent/agent.js';
@@ -45,7 +47,11 @@ export async function startDiscordBot(config: DiscordBotConfig): Promise<Client>
   await registerCommands(token, clientId);
 
   const client = new Client({
-    intents: [GatewayIntentBits.Guilds],
+    intents: [
+      GatewayIntentBits.Guilds,
+      GatewayIntentBits.DirectMessages,
+    ],
+    partials: [Partials.Channel],
   });
 
   client.once(Events.ClientReady, (c) => {
@@ -65,6 +71,24 @@ export async function startDiscordBot(config: DiscordBotConfig): Promise<Client>
       } else {
         await interaction.reply(reply);
       }
+    }
+  });
+
+  client.on(Events.MessageCreate, async (message: Message) => {
+    if (message.author.bot) return;
+    if (message.guild) return; // Only handle DMs
+    if (!message.content.trim()) return;
+
+    try {
+      await message.channel.sendTyping();
+      const messages: ModelMessage[] = [
+        { role: 'user', content: message.content },
+      ];
+      const response = await agent.run(messages);
+      await sendLongMessage(message, response);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      await message.reply(`Error: ${errMsg}`);
     }
   });
 
@@ -171,6 +195,33 @@ async function registerCommands(
   const rest = new REST({ version: '10' }).setToken(token);
   const body = commands.map(c => c.toJSON());
   await rest.put(Routes.applicationCommands(clientId), { body });
+}
+
+async function sendLongMessage(
+  original: Message,
+  text: string,
+): Promise<void> {
+  const chunks = splitMessage(text, 2000);
+  for (const chunk of chunks) {
+    await original.reply(chunk);
+  }
+}
+
+function splitMessage(text: string, maxLen: number): string[] {
+  if (text.length <= maxLen) return [text];
+  const chunks: string[] = [];
+  let remaining = text;
+  while (remaining.length > 0) {
+    if (remaining.length <= maxLen) {
+      chunks.push(remaining);
+      break;
+    }
+    let splitAt = remaining.lastIndexOf('\n', maxLen);
+    if (splitAt < maxLen / 2) splitAt = maxLen;
+    chunks.push(remaining.slice(0, splitAt));
+    remaining = remaining.slice(splitAt);
+  }
+  return chunks;
 }
 
 function formatUptime(seconds: number): string {
