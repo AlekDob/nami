@@ -66,6 +66,11 @@ export class MemoryStore {
     return this.indexer.search(query);
   }
 
+  /** Recent memory entries: latest daily log chunks */
+  async recentEntries(limit = 10): Promise<SearchResult[]> {
+    return this.indexer.recentChunks(limit);
+  }
+
   /** Read specific lines from a memory file */
   async getLines(
     filePath: string,

@@ -10,21 +10,23 @@ interface ModelEntry {
   provider: ProviderName;
   preset: Preset;
   toolUse: boolean;
+  vision: boolean;
 }
 
 const REGISTRY: ModelEntry[] = [
   // Fast tier — cheap, quick responses
-  { id: 'google/gemini-2.0-flash-001', label: 'Gemini 2.0 Flash', provider: 'openrouter', preset: 'fast', toolUse: true },
-  { id: 'kimi-k2-0905-preview', label: 'Kimi K2', provider: 'moonshot', preset: 'fast', toolUse: false },
-  { id: 'minimax/minimax-m2.1', label: 'MiniMax M2.1', provider: 'openrouter', preset: 'fast', toolUse: false },
+  { id: 'google/gemini-2.0-flash-001', label: 'Gemini 2.0 Flash', provider: 'openrouter', preset: 'fast', toolUse: true, vision: true },
+  { id: 'kimi-k2-0905-preview', label: 'Kimi K2', provider: 'moonshot', preset: 'fast', toolUse: false, vision: false },
+  { id: 'kimi-k2.5', label: 'Kimi K2.5 Code Plan', provider: 'moonshot', preset: 'smart', toolUse: true, vision: false },
+  { id: 'minimax/minimax-m2.1', label: 'MiniMax M2.1', provider: 'openrouter', preset: 'fast', toolUse: false, vision: false },
   // Smart tier — good balance
-  { id: 'openai/gpt-4o-mini', label: 'GPT-4o Mini', provider: 'openrouter', preset: 'smart', toolUse: true },
-  { id: 'gpt-4o-mini', label: 'GPT-4o Mini (direct)', provider: 'openai', preset: 'smart', toolUse: true },
-  { id: 'anthropic/claude-3.5-haiku', label: 'Claude 3.5 Haiku', provider: 'openrouter', preset: 'smart', toolUse: true },
+  { id: 'openai/gpt-4o-mini', label: 'GPT-4o Mini', provider: 'openrouter', preset: 'smart', toolUse: true, vision: true },
+  { id: 'gpt-4o-mini', label: 'GPT-4o Mini (direct)', provider: 'openai', preset: 'smart', toolUse: true, vision: true },
+  { id: 'anthropic/claude-3.5-haiku', label: 'Claude 3.5 Haiku', provider: 'openrouter', preset: 'smart', toolUse: true, vision: true },
   // Pro tier — best quality
-  { id: 'openai/gpt-4o', label: 'GPT-4o', provider: 'openrouter', preset: 'pro', toolUse: true },
-  { id: 'gpt-4o', label: 'GPT-4o (direct)', provider: 'openai', preset: 'pro', toolUse: true },
-  { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet', provider: 'openrouter', preset: 'pro', toolUse: true },
+  { id: 'openai/gpt-4o', label: 'GPT-4o', provider: 'openrouter', preset: 'pro', toolUse: true, vision: true },
+  { id: 'gpt-4o', label: 'GPT-4o (direct)', provider: 'openai', preset: 'pro', toolUse: true, vision: true },
+  { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet', provider: 'openrouter', preset: 'pro', toolUse: true, vision: true },
 ];
 
 interface DetectedKeys {
@@ -85,6 +87,22 @@ function getApiKey(provider: ProviderName, keys: DetectedKeys): string {
   return keys.together || '';
 }
 
+/** Wrap fetch to inject thinking: disabled into Moonshot K2.5 requests */
+function createMoonshotFetch(): typeof fetch {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wrapped = async (input: any, init?: any) => {
+    if (init?.body && typeof init.body === 'string') {
+      try {
+        const body = JSON.parse(init.body);
+        body.thinking = { type: 'disabled' };
+        init = { ...init, body: JSON.stringify(body) };
+      } catch { /* not JSON, pass through */ }
+    }
+    return globalThis.fetch(input, init);
+  };
+  return wrapped as typeof fetch;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createModel(entry: ModelEntry, keys: DetectedKeys): any {
   const apiKey = getApiKey(entry.provider, keys);
@@ -95,10 +113,13 @@ export function createModel(entry: ModelEntry, keys: DetectedKeys): any {
   }
 
   if (entry.provider === 'moonshot') {
+    const isK25 = entry.id.includes('k2.5');
     const provider = createOpenAI({
       baseURL: 'https://api.moonshot.ai/v1',
       apiKey,
       name: 'moonshot',
+      // Disable thinking for K2.5 to avoid reasoning_content error with tools
+      ...(isK25 ? { fetch: createMoonshotFetch() } : {}),
     });
     return provider.chat(entry.id);
   }

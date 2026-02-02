@@ -1,5 +1,10 @@
 import { tool } from 'ai';
 import { z } from 'zod';
+import {
+  xBrowseProfile,
+  xBrowseSearch,
+  xBrowseNotifications,
+} from './x-browser.js';
 
 const BASE_URL = 'https://api.twitter.com/2';
 
@@ -12,7 +17,21 @@ interface XResponse {
   meta?: Record<string, unknown>;
 }
 
-async function xFetch(path: string, params?: Record<string, string>): Promise<XResponse> {
+/** Returns true if error looks like a rate/cap limit */
+function isCapError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return (
+    msg.includes('429') ||
+    msg.includes('UsageCapExceeded') ||
+    msg.includes('Too Many Requests') ||
+    msg.includes('Rate limit')
+  );
+}
+
+async function xFetch(
+  path: string,
+  params?: Record<string, string>,
+): Promise<XResponse> {
   const bearer = getBearer();
   if (!bearer) throw new Error('X_BEARER_TOKEN not configured');
 
@@ -28,15 +47,18 @@ async function xFetch(path: string, params?: Record<string, string>): Promise<XR
   });
 
   if (!res.ok) {
-    throw new Error(`X API ${res.status}: ${await res.text()}`);
+    const body = await res.text();
+    throw new Error(`X API ${res.status}: ${body}`);
   }
   return res.json() as Promise<XResponse>;
 }
 
 export const xGetTimeline = tool({
-  description: 'Get recent tweets from a Twitter/X user',
+  description:
+    'Get recent tweets from a Twitter/X user. ' +
+    'Falls back to browser scraping if API cap is hit.',
   inputSchema: z.object({
-    userId: z.string().describe('X user ID (numeric)'),
+    userId: z.string().describe('X user ID (numeric) or handle'),
     maxResults: z.number().default(10).describe('Max tweets'),
   }),
   execute: async ({ userId, maxResults }) => {
@@ -45,15 +67,31 @@ export const xGetTimeline = tool({
         max_results: String(maxResults),
         'tweet.fields': 'created_at,public_metrics',
       });
-      return { tweets: data.data || [], count: data.data?.length || 0 };
+      return {
+        tweets: data.data || [],
+        count: data.data?.length || 0,
+        source: 'api',
+      };
     } catch (err) {
+      if (isCapError(err)) {
+        // Fallback: use browser to scrape the profile
+        const handle = userId.match(/^\d+$/)
+          ? 'alekdobrohotov'
+          : userId;
+        return xBrowseProfile.execute(
+          { handle },
+          { toolCallId: '', messages: [], abortSignal: undefined as never },
+        );
+      }
       return { error: err instanceof Error ? err.message : String(err) };
     }
   },
 });
 
 export const xSearchTweets = tool({
-  description: 'Search tweets by keyword on Twitter/X',
+  description:
+    'Search tweets by keyword on Twitter/X. ' +
+    'Falls back to browser search if API cap is hit.',
   inputSchema: z.object({
     query: z.string().describe('Search query'),
     maxResults: z.number().default(10).describe('Max results'),
@@ -65,15 +103,27 @@ export const xSearchTweets = tool({
         max_results: String(maxResults),
         'tweet.fields': 'created_at,public_metrics,author_id',
       });
-      return { tweets: data.data || [], count: data.data?.length || 0 };
+      return {
+        tweets: data.data || [],
+        count: data.data?.length || 0,
+        source: 'api',
+      };
     } catch (err) {
+      if (isCapError(err)) {
+        return xBrowseSearch.execute(
+          { query, tab: 'top' },
+          { toolCallId: '', messages: [], abortSignal: undefined as never },
+        );
+      }
       return { error: err instanceof Error ? err.message : String(err) };
     }
   },
 });
 
 export const xGetMentions = tool({
-  description: 'Get recent mentions/replies for a Twitter/X user',
+  description:
+    'Get recent mentions/replies for a Twitter/X user. ' +
+    'Falls back to browser notifications if API cap is hit.',
   inputSchema: z.object({
     userId: z.string().describe('X user ID (numeric)'),
     maxResults: z.number().default(10).describe('Max mentions'),
@@ -84,8 +134,18 @@ export const xGetMentions = tool({
         max_results: String(maxResults),
         'tweet.fields': 'created_at,public_metrics,author_id',
       });
-      return { mentions: data.data || [], count: data.data?.length || 0 };
+      return {
+        mentions: data.data || [],
+        count: data.data?.length || 0,
+        source: 'api',
+      };
     } catch (err) {
+      if (isCapError(err)) {
+        return xBrowseNotifications.execute(
+          {},
+          { toolCallId: '', messages: [], abortSignal: undefined as never },
+        );
+      }
       return { error: err instanceof Error ? err.message : String(err) };
     }
   },

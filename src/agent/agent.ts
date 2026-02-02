@@ -24,6 +24,13 @@ const CONTEXT_WINDOW = 128_000;
 
 export type ToolEventCallback = (toolName: string) => void;
 
+export interface RunStats {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  durationMs: number;
+}
+
 export class Agent {
   private memory: MemoryStore;
   private skills: SkillLoader;
@@ -33,6 +40,7 @@ export class Agent {
   private keys = detectApiKeys();
   private currentModelId: string | null = null;
   private isFirstRun = false;
+  lastRunStats: RunStats | null = null;
   onToolUse: ToolEventCallback | null = null;
 
   constructor(
@@ -83,6 +91,9 @@ export class Agent {
       return 'Error: No model available. Set an API key.';
     }
 
+    const startTime = Date.now();
+    this.lastRunStats = null;
+
     try {
       if (shouldFlush(messages, CONTEXT_WINDOW)) {
         await runMemoryFlush(
@@ -127,6 +138,16 @@ export class Agent {
         },
       });
 
+      const usage = result.usage || { inputTokens: 0, outputTokens: 0 };
+      const entry = this.currentModelId
+        ? findModel(this.currentModelId) : null;
+      this.lastRunStats = {
+        model: entry?.label || this.currentModelId || 'unknown',
+        inputTokens: usage.inputTokens ?? 0,
+        outputTokens: usage.outputTokens ?? 0,
+        durationMs: Date.now() - startTime,
+      };
+
       const userMsg = this.lastUserMessage(messages);
       await this.memory.appendToDaily(
         '**User**: ' + userMsg + '\n**Meow**: ' + result.text.slice(0, 500),
@@ -137,6 +158,12 @@ export class Agent {
       const msg = error instanceof Error ? error.message : String(error);
       return 'Error: ' + msg;
     }
+  }
+
+  private isMoonshotModel(): boolean {
+    const entry = this.currentModelId
+      ? findModel(this.currentModelId) : null;
+    return entry?.provider === 'moonshot';
   }
 
   setModel(nameOrId: string): string {
@@ -163,6 +190,13 @@ export class Agent {
     return this.currentModelId || 'none';
   }
 
+  supportsVision(): boolean {
+    const entry = this.currentModelId
+      ? findModel(this.currentModelId)
+      : null;
+    return entry?.vision ?? false;
+  }
+
   listModels(): string {
     return formatModelList(this.keys, this.currentModelId || undefined);
   }
@@ -180,8 +214,17 @@ export class Agent {
 
   private lastUserMessage(messages: ModelMessage[]): string {
     const last = [...messages].reverse().find(m => m.role === 'user');
-    if (!last || typeof last.content !== 'string') return '[unknown]';
-    return last.content as string;
+    if (!last) return '[unknown]';
+    if (typeof last.content === 'string') return last.content;
+    if (Array.isArray(last.content)) {
+      for (const part of last.content) {
+        if (part.type === 'text') return part.text;
+      }
+      for (const part of last.content) {
+        if (part.type === 'image') return '[image]';
+      }
+    }
+    return '[unknown]';
   }
 
   getMemoryStore(): MemoryStore {

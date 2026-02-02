@@ -81,8 +81,33 @@ export function createScheduleTask(scheduler: Scheduler) {
         };
       }
 
+      const label = name || task.slice(0, 40);
+
+      // Re-enable existing disabled job with same name/task
+      const existing = scheduler.listJobs().find(
+        j => !j.enabled && (
+          j.name.toLowerCase() === label.toLowerCase() ||
+          j.task.toLowerCase() === task.toLowerCase()
+        ),
+      );
+
+      if (existing) {
+        const updated = await scheduler.updateAndEnable(existing.id, {
+          cron, task, repeat,
+        });
+        const next = describeNext(cron, scheduler);
+        return {
+          success: true,
+          jobId: existing.id,
+          message: 'Re-enabled existing task: "' + (updated?.name ?? label) + '"',
+          nextTrigger: next,
+          repeats: repeat,
+          reused: true,
+        };
+      }
+
       const job = await scheduler.addJob({
-        name: name || task.slice(0, 40),
+        name: label,
         cron,
         task,
         userId: 'default',

@@ -28,6 +28,12 @@ const commands = [
       o.setName('message').setDescription('Your message').setRequired(true),
     ),
   new SlashCommandBuilder()
+    .setName('new')
+    .setDescription('Start a new conversation (clear history)'),
+  new SlashCommandBuilder()
+    .setName('clear')
+    .setDescription('Clear conversation history'),
+  new SlashCommandBuilder()
     .setName('status')
     .setDescription('Show agent status'),
   new SlashCommandBuilder()
@@ -41,6 +47,42 @@ const commands = [
     ),
 ];
 
+/** Per-user conversation history for Discord */
+const userHistories = new Map<string, ModelMessage[]>();
+
+function getUserHistory(userId: string): ModelMessage[] {
+  if (!userHistories.has(userId)) {
+    userHistories.set(userId, []);
+  }
+  return userHistories.get(userId)!;
+}
+
+function clearUserHistory(userId: string): number {
+  const history = userHistories.get(userId);
+  const count = history?.length ?? 0;
+  userHistories.set(userId, []);
+  return count;
+}
+
+/** Store last DM user ID so we can send notifications */
+let lastDmUserId: string | null = null;
+let discordClient: Client | null = null;
+
+/** Send a notification to the last DM user via Discord */
+export async function sendDiscordNotification(text: string): Promise<boolean> {
+  if (!discordClient || !lastDmUserId) return false;
+  try {
+    const user = await discordClient.users.fetch(lastDmUserId);
+    const chunks = splitMessage(text, 2000);
+    for (const chunk of chunks) {
+      await user.send(chunk);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function startDiscordBot(config: DiscordBotConfig): Promise<Client> {
   const { token, clientId, agent, scheduler } = config;
 
@@ -53,14 +95,16 @@ export async function startDiscordBot(config: DiscordBotConfig): Promise<Client>
     ],
     partials: [Partials.Channel],
   });
+  discordClient = client;
 
-  client.once(Events.ClientReady, (c) => {
-    console.log(`Discord bot ready as ${c.user.tag}`);
+  client.once(Events.ClientReady, () => {
+    // Ready — silent (avoids polluting CLI input box)
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
+    lastDmUserId = interaction.user.id;
     try {
       await handleCommand(interaction, agent, scheduler);
     } catch (err) {
@@ -77,15 +121,37 @@ export async function startDiscordBot(config: DiscordBotConfig): Promise<Client>
   client.on(Events.MessageCreate, async (message: Message) => {
     if (message.author.bot) return;
     if (message.guild) return; // Only handle DMs
-    if (!message.content.trim()) return;
 
+    const hasText = message.content.trim().length > 0;
+    const hasImages = message.attachments.some(a => isImageType(a.contentType));
+    if (!hasText && !hasImages) return;
+
+    lastDmUserId = message.author.id;
     try {
-      await message.channel.sendTyping();
-      const messages: ModelMessage[] = [
-        { role: 'user', content: message.content },
-      ];
-      const response = await agent.run(messages);
-      await sendLongMessage(message, response);
+      if ("sendTyping" in message.channel) await message.channel.sendTyping();
+      const history = getUserHistory(message.author.id);
+      const userMsg = await buildUserMessage(message);
+
+      // Strip images if model doesn't support vision
+      let visionWarning = '';
+      if (hasImages && !agent.supportsVision()) {
+        visionWarning = '\n\n-# ⚠️ Current model does not support images. Use `/model gpt-4o-mini` for vision.';
+        // Convert multimodal message to text-only
+        if (typeof userMsg.content !== 'string' && Array.isArray(userMsg.content)) {
+          const textParts = userMsg.content
+            .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+            .map(p => p.text);
+          const imgCount = userMsg.content.filter(p => p.type === 'image').length;
+          const label = imgCount === 1 ? '1 image attached' : `${imgCount} images attached`;
+          userMsg.content = (textParts.join(' ') + ` [${label} — not sent, model lacks vision]`).trim();
+        }
+      }
+
+      history.push(userMsg);
+      const response = await agent.run(history);
+      history.push({ role: 'assistant', content: response });
+      const footer = formatModelFooter(agent);
+      await sendLongMessage(message, response + footer + visionWarning);
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
       await message.reply(`Error: ${errMsg}`);
@@ -104,6 +170,10 @@ async function handleCommand(
   switch (interaction.commandName) {
     case 'ask':
       await handleAsk(interaction, agent);
+      break;
+    case 'new':
+    case 'clear':
+      await handleClear(interaction);
       break;
     case 'status':
       await handleStatus(interaction);
@@ -124,14 +194,27 @@ async function handleAsk(
   const message = interaction.options.getString('message', true);
   await interaction.deferReply();
 
-  const userId = interaction.user.id;
-  const messages: ModelMessage[] = [{ role: 'user', content: message }];
-  const response = await agent.run(messages);
+  const history = getUserHistory(interaction.user.id);
+  history.push({ role: 'user', content: message });
+  const response = await agent.run(history);
+  history.push({ role: 'assistant', content: response });
 
-  const trimmed = response.length > 2000
-    ? response.slice(0, 1997) + '...'
-    : response;
+  const footer = formatModelFooter(agent);
+  const full = response + footer;
+  const trimmed = full.length > 2000
+    ? full.slice(0, 1997) + '...'
+    : full;
   await interaction.editReply(trimmed);
+}
+
+async function handleClear(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  const count = clearUserHistory(interaction.user.id);
+  const msgs = Math.floor(count / 2);
+  await interaction.reply(
+    `Conversation cleared! (${msgs} message${msgs !== 1 ? 's' : ''} removed)`,
+  );
 }
 
 async function handleStatus(
@@ -186,6 +269,38 @@ async function handleMemory(
   await interaction.editReply(
     `**Memory Search: "${query}"**\n${lines.join('\n')}`,
   );
+}
+
+function isImageType(contentType: string | null): boolean {
+  if (!contentType) return false;
+  return contentType.startsWith('image/');
+}
+
+async function buildUserMessage(message: Message): Promise<ModelMessage> {
+  const parts: Array<{ type: 'text'; text: string } | { type: 'image'; image: URL }> = [];
+
+  if (message.content.trim()) {
+    parts.push({ type: 'text', text: message.content });
+  }
+
+  for (const [, attachment] of message.attachments) {
+    if (!isImageType(attachment.contentType)) continue;
+    parts.push({ type: 'image', image: new URL(attachment.url) });
+  }
+
+  if (parts.length === 1 && parts[0].type === 'text') {
+    return { role: 'user', content: parts[0].text };
+  }
+
+  return { role: 'user', content: parts };
+}
+
+function formatModelFooter(agent: Agent): string {
+  const stats = agent.lastRunStats;
+  if (!stats) return '';
+  const dur = (stats.durationMs / 1000).toFixed(1);
+  const tok = stats.inputTokens + stats.outputTokens;
+  return `\n\n-# ${stats.model} · ${tok} tok · ${dur}s`;
 }
 
 async function registerCommands(

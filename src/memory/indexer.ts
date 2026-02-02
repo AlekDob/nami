@@ -205,19 +205,23 @@ export class MemoryIndexer {
   ): SearchResult[] {
     const merged = new Map<string, SearchResult>();
 
-    // Normalize scores
+    const hasVector = vector.length > 0;
     const maxKw = Math.max(...keyword.map(r => r._rawScore), 1);
     const maxVec = Math.max(...vector.map(r => r._rawScore), 1);
 
+    // When only keyword search is active, use full weight (1.0)
+    const kwWeight = hasVector ? this.config.keywordWeight : 1.0;
+    const vecWeight = this.config.vectorWeight;
+
     for (const r of keyword) {
       const key = `${r.path}:${r.startLine}`;
-      const normScore = (r._rawScore / maxKw) * this.config.keywordWeight;
+      const normScore = (r._rawScore / maxKw) * kwWeight;
       merged.set(key, { ...r, score: normScore });
     }
 
     for (const r of vector) {
       const key = `${r.path}:${r.startLine}`;
-      const normScore = (r._rawScore / maxVec) * this.config.vectorWeight;
+      const normScore = (r._rawScore / maxVec) * vecWeight;
       const existing = merged.get(key);
       if (existing) {
         existing.score += normScore;
@@ -257,6 +261,29 @@ export class MemoryIndexer {
       if (start >= lines.length) break;
     }
     return chunks;
+  }
+
+  recentChunks(limit: number): SearchResult[] {
+    const rows = this.db.query(`
+      SELECT path, start_line, end_line, text
+      FROM chunks
+      ORDER BY path DESC, start_line DESC
+      LIMIT ?
+    `).all(limit) as Array<{
+      path: string;
+      start_line: number;
+      end_line: number;
+      text: string;
+    }>;
+
+    return rows.map(r => ({
+      path: r.path,
+      startLine: r.start_line,
+      endLine: r.end_line,
+      snippet: r.text.slice(0, 500),
+      score: 1.0,
+      source: r.path.includes('daily/') ? 'daily' as const : 'memory' as const,
+    }));
   }
 
   close(): void {

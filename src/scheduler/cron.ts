@@ -4,9 +4,12 @@ import type { Job, JobStore } from './types.js';
 
 export type NotifyCallback = (job: Job, message: string) => void;
 
+const MIN_INTERVAL_MS = 60_000; // 1 minute minimum
+
 export class Scheduler {
   private jobs: Job[] = [];
   private timers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private running: Set<string> = new Set();
   private jobsPath: string;
   private onTrigger: (job: Job) => Promise<void>;
   onNotify: NotifyCallback | null = null;
@@ -41,6 +44,22 @@ export class Scheduler {
     this.jobs.splice(idx, 1);
     await this.saveJobs();
     return true;
+  }
+
+  async updateAndEnable(
+    id: string,
+    updates: Partial<Pick<Job, 'cron' | 'task' | 'repeat' | 'name'>>,
+  ): Promise<Job | null> {
+    const job = this.jobs.find(j => j.id === id);
+    if (!job) return null;
+    if (updates.cron !== undefined) job.cron = updates.cron;
+    if (updates.task !== undefined) job.task = updates.task;
+    if (updates.repeat !== undefined) job.repeat = updates.repeat;
+    if (updates.name !== undefined) job.name = updates.name;
+    job.enabled = true;
+    this.scheduleJob(job);
+    await this.saveJobs();
+    return job;
   }
 
   async toggleJob(id: string): Promise<Job | null> {
@@ -80,25 +99,34 @@ export class Scheduler {
 
   private scheduleNext(job: Job): void {
     const ms = this.msUntilNext(job.cron);
-    if (ms === null) return;
+    if (ms === null || !Number.isFinite(ms) || ms < 0) return;
+
+    const safeMs = Math.max(ms, MIN_INTERVAL_MS);
 
     const timer = setTimeout(async () => {
-      job.lastRun = new Date().toISOString();
-      await this.saveJobs();
+      if (this.running.has(job.id)) return;
+      this.running.add(job.id);
 
-      if (this.onNotify && job.notify) {
-        this.onNotify(job, job.task);
+      try {
+        job.lastRun = new Date().toISOString();
+        await this.saveJobs();
+
+        if (this.onNotify && job.notify) {
+          this.onNotify(job, job.task);
+        }
+
+        await this.onTrigger(job);
+      } finally {
+        this.running.delete(job.id);
       }
 
-      await this.onTrigger(job);
-
-      if (job.repeat) {
+      if (job.repeat && job.enabled) {
         this.scheduleNext(job);
-      } else {
+      } else if (!job.repeat) {
         job.enabled = false;
         await this.saveJobs();
       }
-    }, ms);
+    }, safeMs);
 
     this.timers.set(job.id, timer);
   }
@@ -124,17 +152,35 @@ export class Scheduler {
     if (parts.length !== 5) return null;
     const [minStr, hourStr, , , dayOfWeekStr] = parts;
 
+    // Handle */N interval syntax (e.g. */30 * * * * = every 30 min)
+    const stepMatch = minStr.match(/^\*\/(\d+)$/);
+    if (stepMatch && hourStr === '*') {
+      const stepMin = parseInt(stepMatch[1], 10);
+      if (!stepMin || stepMin <= 0) return null;
+      const now = new Date();
+      const currentMin = now.getMinutes();
+      const nextStep = Math.ceil((currentMin + 1) / stepMin) * stepMin;
+      const minsUntil = nextStep <= 59
+        ? nextStep - currentMin
+        : stepMin - (currentMin % stepMin);
+      const target = new Date(now);
+      target.setMinutes(currentMin + minsUntil, 0, 0);
+      return Math.max(target.getTime() - now.getTime(), MIN_INTERVAL_MS);
+    }
+
     const now = new Date();
     const target = new Date(now);
 
+    // Specific hour:minute (e.g. 30 17 * * *)
     if (hourStr !== '*' && minStr !== '*') {
-      target.setHours(parseInt(hourStr, 10));
-      target.setMinutes(parseInt(minStr, 10));
-      target.setSeconds(0);
-      target.setMilliseconds(0);
+      const h = parseInt(hourStr, 10);
+      const m = parseInt(minStr, 10);
+      if (isNaN(h) || isNaN(m)) return null;
+      target.setHours(h, m, 0, 0);
 
       if (dayOfWeekStr !== '*') {
         const targetDay = parseInt(dayOfWeekStr, 10);
+        if (isNaN(targetDay)) return null;
         const currentDay = target.getDay();
         let daysAhead = targetDay - currentDay;
         if (daysAhead < 0) daysAhead += 7;
@@ -147,10 +193,11 @@ export class Scheduler {
       return target.getTime() - now.getTime();
     }
 
-    if (minStr !== '*') {
+    // Specific minute every hour (e.g. 30 * * * *)
+    if (minStr !== '*' && !stepMatch) {
       const targetMin = parseInt(minStr, 10);
-      target.setMinutes(targetMin);
-      target.setSeconds(0);
+      if (isNaN(targetMin)) return null;
+      target.setMinutes(targetMin, 0, 0);
       if (target <= now) target.setHours(target.getHours() + 1);
       return target.getTime() - now.getTime();
     }

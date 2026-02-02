@@ -1,6 +1,6 @@
 import type { ModelMessage } from 'ai';
 import type { Agent } from '../agent/agent.js';
-import { c, animateCat, printHeader } from './ui.js';
+import { c, printSplash, printInfoBar } from './ui.js';
 
 type CommandHandler = (
   args: string,
@@ -17,9 +17,8 @@ const commands: Record<string, CommandHandler> = {
   '/clear': async (_args, agent, history) => {
     history.length = 0;
     console.clear?.();
-    await animateCat();
-    console.log('');
-    printHeader(agent.getModelInfo(), '', '');
+    printSplash();
+    printInfoBar(agent.getModelInfo());
     console.log(`  ${c.green}History cleared!${c.reset}\n`);
     return true;
   },
