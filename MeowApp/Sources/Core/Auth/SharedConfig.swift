@@ -5,10 +5,20 @@ enum SharedConfig {
     static let appGroupID = "group.com.alekdob.MeowApp"
     static let keychainService = "com.meow.apikey"
     static let serverURLKey = "com.meow.serverurl"
+    static let apiKeyDefaultsKey = "com.meow.apikey.shared"
+    static let elevenLabsAPIKeyKey = "com.meow.elevenlabs.apikey"
+
+    // MARK: - Shared UserDefaults
 
     static var sharedDefaults: UserDefaults {
-        UserDefaults(suiteName: appGroupID) ?? .standard
+        let ud = UserDefaults(suiteName: appGroupID)
+        if ud == nil {
+            print("[SharedConfig] WARNING: App Group '\(appGroupID)' UserDefaults returned nil!")
+        }
+        return ud ?? .standard
     }
+
+    // MARK: - Server URL
 
     static var serverURL: String {
         get {
@@ -16,102 +26,116 @@ enum SharedConfig {
                !url.isEmpty {
                 return url
             }
-            // Fallback: read from standard UserDefaults (legacy)
-            if let legacy = UserDefaults.standard.string(forKey: serverURLKey),
-               !legacy.isEmpty {
-                // Auto-migrate to shared
-                sharedDefaults.set(legacy, forKey: serverURLKey)
-                return legacy
+            if let url = UserDefaults.standard.string(
+                forKey: serverURLKey
+            ), !url.isEmpty {
+                return url
             }
             return ""
         }
         set {
-            sharedDefaults.set(newValue, forKey: serverURLKey)
-            // Keep standard in sync for backward compat
             UserDefaults.standard.set(newValue, forKey: serverURLKey)
+            sharedDefaults.set(newValue, forKey: serverURLKey)
         }
     }
 
+    // MARK: - API Key
+    // Primary: shared UserDefaults (works across app + extension)
+    // Fallback: Keychain (main app only)
+
     static var apiKey: String {
-        readKeychain(service: keychainService) ?? ""
+        if let key = sharedDefaults.string(forKey: apiKeyDefaultsKey),
+           !key.isEmpty {
+            print("[SharedConfig] apiKey found in sharedDefaults")
+            return key
+        }
+        let kcKey = readKeychain(service: keychainService)
+        print("[SharedConfig] apiKey from sharedDefaults: nil, keychain: \(kcKey != nil ? "found" : "nil")")
+        return kcKey ?? ""
     }
 
     static var isConfigured: Bool {
-        !apiKey.isEmpty && !serverURL.isEmpty
+        let url = serverURL
+        let key = apiKey
+        let result = !key.isEmpty && !url.isEmpty
+        print("[SharedConfig] isConfigured=\(result) url='\(url.prefix(30))...' apiKey=\(key.isEmpty ? "EMPTY" : "SET(\(key.count)chars)")")
+        return result
     }
 
-    // MARK: - Keychain (with access group)
+    // Saves to BOTH shared UserDefaults and Keychain
+    static func saveAPIKey(_ value: String) {
+        print("[SharedConfig] saveAPIKey called, length=\(value.count)")
+        sharedDefaults.set(value, forKey: apiKeyDefaultsKey)
+        sharedDefaults.synchronize()
+        // Verify write
+        let verify = sharedDefaults.string(forKey: apiKeyDefaultsKey)
+        print("[SharedConfig] saveAPIKey verify: \(verify != nil ? "OK" : "FAILED")")
+        saveKeychain(service: keychainService, value: value)
+    }
+
+    static func deleteAPIKey() {
+        sharedDefaults.removeObject(forKey: apiKeyDefaultsKey)
+        deleteKeychain(service: keychainService)
+    }
+
+    // MARK: - ElevenLabs API Key
+
+    static var elevenLabsAPIKey: String {
+        get {
+            let saved = sharedDefaults.string(forKey: elevenLabsAPIKeyKey) ?? ""
+            // Return saved key or default if empty
+            return saved.isEmpty ? "sk_a7193c2566c6bdc07813f7e82e7daff3855678534e3bf66d" : saved
+        }
+        set {
+            sharedDefaults.set(newValue, forKey: elevenLabsAPIKeyKey)
+        }
+    }
+
+    // MARK: - Keychain (kept for main app compatibility)
 
     static func saveKeychain(service: String, value: String) {
         let data = Data(value.utf8)
-        deleteKeychain(service: service)
+        let deleteQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service
+        ]
+        SecItemDelete(deleteQuery as CFDictionary)
 
-        let query: [String: Any] = [
+        let addQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccessGroup as String: appGroupID,
             kSecValueData as String: data,
             kSecAttrAccessible as String:
-                kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+                kSecAttrAccessibleAfterFirstUnlock
         ]
-        SecItemAdd(query as CFDictionary, nil)
-    }
-
-    static func readKeychain(service: String) -> String? {
-        // Try with access group first
-        if let value = readKeychainWith(
-            service: service, accessGroup: appGroupID
-        ) {
-            return value
-        }
-        // Fallback: read legacy item without access group
-        if let value = readKeychainWith(
-            service: service, accessGroup: nil
-        ) {
-            // Migrate to shared access group
-            saveKeychain(service: service, value: value)
-            deleteKeychainLegacy(service: service)
-            return value
-        }
-        return nil
+        SecItemAdd(addQuery as CFDictionary, nil)
     }
 
     static func deleteKeychain(service: String) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccessGroup as String: appGroupID
+            kSecAttrService as String: service
         ]
         SecItemDelete(query as CFDictionary)
     }
 
     // MARK: - Private
 
-    private static func readKeychainWith(
-        service: String, accessGroup: String?
-    ) -> String? {
-        var query: [String: Any] = [
+    static func readKeychain(service: String) -> String? {
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
-        if let group = accessGroup {
-            query[kSecAttrAccessGroup as String] = group
-        }
         var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        guard status == errSecSuccess, let data = result as? Data else {
+        let status = SecItemCopyMatching(
+            query as CFDictionary, &result
+        )
+        guard status == errSecSuccess,
+              let data = result as? Data else {
             return nil
         }
         return String(data: data, encoding: .utf8)
-    }
-
-    private static func deleteKeychainLegacy(service: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service
-        ]
-        SecItemDelete(query as CFDictionary)
     }
 }

@@ -1,44 +1,48 @@
 import SwiftUI
 
 enum MeowTheme {
-    // MARK: - Dark Mode
+    // MARK: - Dark Mode (Primary — ChatGPT style)
 
     enum Dark {
-        static let background = Color(hex: 0x0D0D0D)
-        static let surface = Color(hex: 0x1A1A1A)
-        static let surfaceHover = Color(hex: 0x222222)
+        static let background = Color.black
+        static let surface = Color(hex: 0x2F2F2F)
+        static let surfaceHover = Color(hex: 0x3A3A3A)
+        static let inputBg = Color(hex: 0x2F2F2F)
         static let border = Color.white.opacity(0.08)
-        static let textPrimary = Color(hex: 0xECECEC)
-        static let textSecondary = Color(hex: 0x8E8E8E)
-        static let textMuted = Color(hex: 0x555555)
+        static let textPrimary = Color.white
+        static let textSecondary = Color(hex: 0xB4B4B4)
+        static let textMuted = Color(hex: 0x767676)
     }
 
     // MARK: - Light Mode
 
     enum Light {
-        static let background = Color(hex: 0xFFFFFF)
+        static let background = Color.white
         static let surface = Color(hex: 0xF7F7F8)
         static let surfaceHover = Color(hex: 0xEFEFF0)
+        static let inputBg = Color(hex: 0xF7F7F8)
         static let border = Color.black.opacity(0.06)
-        static let textPrimary = Color(hex: 0x1A1A1A)
-        static let textSecondary = Color(hex: 0x6E6E6E)
-        static let textMuted = Color(hex: 0xA0A0A0)
+        static let textPrimary = Color.black
+        static let textSecondary = Color(hex: 0x6E6E80)
+        static let textMuted = Color(hex: 0xACACAD)
     }
 
-    // MARK: - Accent (minimal — one tint)
+    // MARK: - Accents (Minimal)
 
-    static let accent = Color(hex: 0x10A37F)
+    static let accent = Color.white
+    static let accentDark = Color(hex: 0x2F2F2F)
     static let red = Color(hex: 0xEF4444)
-    static let yellow = Color(hex: 0xF59E0B)
     static let green = Color(hex: 0x10B981)
+    static let yellow = Color.orange
+    static let purple = Color(hex: 0x9D4EDD)
 
-    // MARK: - Typography
+    // MARK: - Typography (System — SF Pro)
 
-    static let body = Font.system(.body, design: .default)
-    static let bodySmall = Font.system(.caption, design: .default)
-    static let bodyMedium = Font.system(.subheadline, design: .default)
-    static let title = Font.system(.title2, weight: .semibold)
-    static let headline = Font.system(.headline, weight: .medium)
+    static let body = Font.body
+    static let bodySmall = Font.caption
+    static let bodyMedium = Font.subheadline
+    static let title = Font.title2.bold()
+    static let headline = Font.headline
     static let mono = Font.system(.body, design: .monospaced)
     static let monoSmall = Font.system(.caption, design: .monospaced)
 
@@ -52,9 +56,12 @@ enum MeowTheme {
 
     // MARK: - Corners
 
-    static let cornerSM: CGFloat = 8
-    static let cornerMD: CGFloat = 12
-    static let cornerLG: CGFloat = 16
+    static let cornerSharp: CGFloat = 4
+    static let cornerSubtle: CGFloat = 8
+    static let cornerSM: CGFloat = 12
+    static let cornerMD: CGFloat = 16
+    static let cornerLG: CGFloat = 22
+    static let cornerPill: CGFloat = 100
 }
 
 // MARK: - Color Extension
@@ -88,18 +95,27 @@ struct AdaptiveColors {
 
 extension MeowTheme {
     static let cyan = accent
-    static let violet = accent
+    static let violet = purple
     static let magenta = red
+    static let accentLight = accent.opacity(0.6)
+    static let accentBright = accent
+    static let orange = Color(hex: 0xFF6B35)
     static let bodyFont = body
     static let headlineFont = headline
     static let titleFont = title
     static let bodyLarge = title
     static let monoFont = mono
+    static let serifTitle = title
+    static let serifHeadline = headline
     static let accentGradient = LinearGradient(colors: [accent], startPoint: .leading, endPoint: .trailing)
-    static let subtleGradient = LinearGradient(colors: [accent.opacity(0.7)], startPoint: .leading, endPoint: .trailing)
+    static let subtleGradient = LinearGradient(colors: [Dark.surface], startPoint: .top, endPoint: .bottom)
     static let cornerRadiusSM = cornerSM
     static let cornerRadiusMD = cornerMD
     static let cornerRadiusLG = cornerLG
+    static let gradientDarkStart = Dark.background
+    static let gradientDarkEnd = Dark.background
+    static let gradientLightStart = Light.background
+    static let gradientLightEnd = Light.background
 }
 
 // MARK: - MeowColors ViewModifier

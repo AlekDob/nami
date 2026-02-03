@@ -1,78 +1,101 @@
 import SwiftUI
 
 struct ChatBubble: View {
-    let content: String
+    let content: MessageContent
     let isUser: Bool
     let stats: ChatStats?
     let toolsUsed: [String]?
+    let messageID: UUID?
+    let tts: TextToSpeechService?
 
     @Environment(\.colorScheme) private var colorScheme
 
-    init(content: String, isUser: Bool, stats: ChatStats? = nil, toolsUsed: [String]? = nil) {
+    init(content: MessageContent, isUser: Bool, stats: ChatStats? = nil, toolsUsed: [String]? = nil, messageID: UUID? = nil, tts: TextToSpeechService? = nil) {
         self.content = content
         self.isUser = isUser
         self.stats = stats
         self.toolsUsed = toolsUsed
+        self.messageID = messageID
+        self.tts = tts
     }
 
     var body: some View {
-        VStack(alignment: isUser ? .trailing : .leading, spacing: MeowTheme.spacingXS) {
-            Group {
-                if isUser {
-                    Text(content)
-                        .font(MeowTheme.body)
-                        .foregroundColor(textColor)
-                } else {
-                    MarkdownText(content: content, textColor: textColor)
-                }
-            }
-            .padding(.horizontal, MeowTheme.spacingMD)
-            .padding(.vertical, MeowTheme.spacingSM + 4)
-            .background(bgColor)
-            .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerMD, style: .continuous))
-
-            if let tools = toolsUsed, !tools.isEmpty { toolsRow(tools) }
-            if let stats { statsRow(stats) }
+        VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
+            if content.hasImages { imageGrid }
+            if !content.textContent.isEmpty { textBody }
+            if !isUser { actionRow }
         }
         .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
     }
 
-    private var textColor: Color {
-        isUser ? .white : (colorScheme == .dark ? MeowTheme.Dark.textPrimary : MeowTheme.Light.textPrimary)
-    }
-
-    private var bgColor: Color {
-        isUser ? MeowTheme.accent : (colorScheme == .dark ? MeowTheme.Dark.surface : MeowTheme.Light.surface)
-    }
-
-    private func toolsRow(_ tools: [String]) -> some View {
-        FlowLayout(spacing: 4) {
-            ForEach(tools, id: \.self) { tool in
-                HStack(spacing: 3) {
-                    Image(systemName: toolIcon(tool))
-                        .font(.system(size: 8))
-                    Text(toolLabel(tool))
-                        .font(.system(.caption2, design: .monospaced))
-                }
-                .foregroundColor(MeowTheme.accent)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(MeowTheme.accent.opacity(0.1))
-                .clipShape(Capsule())
-            }
+    @ViewBuilder
+    private var textBody: some View {
+        if isUser {
+            // User: dark gray rounded pill
+            Text(content.textContent)
+                .font(.body)
+                .foregroundColor(primaryColor)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(surfaceColor)
+                .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerLG, style: .continuous))
+        } else {
+            // Assistant: no background, just text
+            MarkdownText(content: content.textContent, textColor: primaryColor)
         }
     }
 
-    private func toolIcon(_ tool: String) -> String {
-        let name = tool.lowercased()
-        if name.contains("web") || name.contains("fetch") { return "globe" }
-        if name.contains("read") || name.contains("file") { return "doc.text" }
-        if name.contains("write") { return "square.and.pencil" }
-        if name.contains("memory") || name.contains("search") { return "brain" }
-        if name.contains("schedule") || name.contains("task") || name.contains("job") { return "clock" }
-        if name.contains("email") { return "envelope" }
-        if name.contains("x") || name.contains("tweet") || name.contains("browse") { return "bird" }
-        return "gearshape"
+    // MARK: - Action Row (ChatGPT style icons below assistant msg)
+
+    @ViewBuilder
+    private var actionRow: some View {
+        HStack(spacing: 14) {
+            if let tts, let messageID {
+                actionIcon(tts.speakingMessageID == messageID && tts.isSpeaking
+                           ? "stop.fill" : "speaker.wave.2",
+                           action: { tts.toggleSpeak(content.textContent, messageID: messageID) })
+            }
+            if let tools = toolsUsed, !tools.isEmpty {
+                ForEach(tools, id: \.self) { tool in
+                    Text(toolLabel(tool))
+                        .font(.caption2)
+                        .foregroundColor(mutedColor)
+                }
+            }
+            if let stats { statsLabel(stats) }
+        }
+    }
+
+    private func actionIcon(_ icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundColor(mutedColor)
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var imageGrid: some View {
+        HStack(spacing: 6) {
+            ForEach(Array(content.images.enumerated()), id: \.offset) { _, base64 in
+                if let img = ImageCompressor.decodeBase64Image(base64) {
+                    #if canImport(UIKit)
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 200, maxHeight: 200)
+                        .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerSM))
+                    #else
+                    Image(nsImage: img)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 200, maxHeight: 200)
+                        .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerSM))
+                    #endif
+                }
+            }
+        }
     }
 
     private func toolLabel(_ tool: String) -> String {
@@ -83,13 +106,25 @@ struct ChatBubble: View {
         ).lowercased()
     }
 
-    private func statsRow(_ stats: ChatStats) -> some View {
-        HStack(spacing: MeowTheme.spacingSM) {
+    private func statsLabel(_ stats: ChatStats) -> some View {
+        HStack(spacing: 4) {
             if let model = stats.model { Text(model) }
             if let tokens = stats.outputTokens { Text("\(tokens) tok") }
             if let duration = stats.durationMs { Text("\(duration)ms") }
         }
-        .font(MeowTheme.monoSmall)
-        .foregroundColor(colorScheme == .dark ? MeowTheme.Dark.textMuted : MeowTheme.Light.textMuted)
+        .font(.caption2)
+        .foregroundColor(mutedColor)
+    }
+
+    private var primaryColor: Color {
+        colorScheme == .dark ? MeowTheme.Dark.textPrimary : MeowTheme.Light.textPrimary
+    }
+
+    private var surfaceColor: Color {
+        colorScheme == .dark ? MeowTheme.Dark.surface : MeowTheme.Light.surface
+    }
+
+    private var mutedColor: Color {
+        colorScheme == .dark ? MeowTheme.Dark.textMuted : MeowTheme.Light.textMuted
     }
 }

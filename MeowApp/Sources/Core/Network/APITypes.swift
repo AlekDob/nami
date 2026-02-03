@@ -1,18 +1,119 @@
 import Foundation
 
+// MARK: - Content Parts (Multimodal)
+
+enum ContentPart: Codable, Equatable {
+    case text(String)
+    case image(String) // base64 data URI
+
+    enum CodingKeys: String, CodingKey {
+        case type, text, image
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try container.decode(String.self, forKey: .type)
+        switch type {
+        case "text":
+            self = .text(try container.decode(String.self, forKey: .text))
+        case "image":
+            self = .image(try container.decode(String.self, forKey: .image))
+        default:
+            self = .text("[unsupported: \(type)]")
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .text(let text):
+            try container.encode("text", forKey: .type)
+            try container.encode(text, forKey: .text)
+        case .image(let data):
+            try container.encode("image", forKey: .type)
+            try container.encode(data, forKey: .image)
+        }
+    }
+}
+
+enum MessageContent: Equatable {
+    case text(String)
+    case parts([ContentPart])
+
+    var textContent: String {
+        switch self {
+        case .text(let s): return s
+        case .parts(let parts):
+            return parts.compactMap {
+                if case .text(let t) = $0 { return t }
+                return nil
+            }.joined(separator: " ")
+        }
+    }
+
+    var images: [String] {
+        switch self {
+        case .text: return []
+        case .parts(let parts):
+            return parts.compactMap {
+                if case .image(let data) = $0 { return data }
+                return nil
+            }
+        }
+    }
+
+    var hasImages: Bool { !images.isEmpty }
+}
+
+extension MessageContent: Codable {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let str = try? container.decode(String.self) {
+            self = .text(str)
+        } else {
+            let parts = try container.decode([ContentPart].self)
+            self = .parts(parts)
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .text(let s):
+            try container.encode(s)
+        case .parts(let parts):
+            try container.encode(parts)
+        }
+    }
+}
+
 // MARK: - Chat
 
 struct ChatMessage: Codable, Identifiable, Equatable {
     let id: UUID
     let role: MessageRole
-    let content: String
+    let content: MessageContent
     let timestamp: Date
 
     init(role: MessageRole, content: String) {
         self.id = UUID()
         self.role = role
-        self.content = content
+        self.content = .text(content)
         self.timestamp = Date()
+    }
+
+    init(role: MessageRole, text: String, images: [String]) {
+        self.id = UUID()
+        self.role = role
+        self.timestamp = Date()
+        if images.isEmpty {
+            self.content = .text(text)
+        } else {
+            var parts: [ContentPart] = []
+            if !text.isEmpty { parts.append(.text(text)) }
+            parts.append(contentsOf: images.map { .image($0) })
+            self.content = .parts(parts)
+        }
     }
 
     enum CodingKeys: String, CodingKey {
@@ -23,7 +124,7 @@ struct ChatMessage: Codable, Identifiable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.id = UUID()
         self.role = try container.decode(MessageRole.self, forKey: .role)
-        self.content = try container.decode(String.self, forKey: .content)
+        self.content = try container.decode(MessageContent.self, forKey: .content)
         self.timestamp = Date()
     }
 
@@ -75,6 +176,19 @@ struct ServerMemory: Codable {
 
 struct ModelsResponse: Codable {
     let models: String
+}
+
+struct ModelInfo: Codable, Identifiable, Equatable {
+    let id: String
+    let label: String
+    let preset: String
+    let vision: Bool
+    let toolUse: Bool
+    let current: Bool
+}
+
+struct ModelListResponse: Codable {
+    let models: [ModelInfo]
 }
 
 struct SetModelRequest: Codable {

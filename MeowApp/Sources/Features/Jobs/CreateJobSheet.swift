@@ -65,8 +65,8 @@ struct CreateJobSheet: View {
 
     private var togglesSection: some View {
         VStack(spacing: MeowTheme.spacingSM) {
-            toggleRow(label: "Repeat", isOn: $viewModel.newJobRepeat, color: MeowTheme.accent)
-            toggleRow(label: "Notify", isOn: $viewModel.newJobNotify, color: MeowTheme.yellow)
+            toggleRow(label: "Repeat", isOn: $viewModel.newJobRepeat, color: MeowTheme.green)
+            toggleRow(label: "Notify", isOn: $viewModel.newJobNotify, color: MeowTheme.green)
         }
     }
 
@@ -81,11 +81,7 @@ struct CreateJobSheet: View {
         }
         .padding(MeowTheme.spacingSM + 4)
         .background(surfaceColor)
-        .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerRadiusSM, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: MeowTheme.cornerRadiusSM, style: .continuous)
-                .stroke(borderColor, lineWidth: 1)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerSM, style: .continuous))
     }
 
     private func errorLabel(_ message: String) -> some View {
@@ -113,7 +109,7 @@ struct CreateJobSheet: View {
         }
         ToolbarItem(placement: .confirmationAction) {
             Button("Create") { viewModel.createJob() }
-                .foregroundColor(MeowTheme.accent)
+                .foregroundColor(MeowTheme.green)
                 .disabled(!viewModel.canCreate)
         }
     }
@@ -126,10 +122,6 @@ struct CreateJobSheet: View {
 
     private var surfaceColor: Color {
         colorScheme == .dark ? MeowTheme.Dark.surface : MeowTheme.Light.surface
-    }
-
-    private var borderColor: Color {
-        colorScheme == .dark ? MeowTheme.Dark.border : MeowTheme.Light.border
     }
 
     private var primaryColor: Color {

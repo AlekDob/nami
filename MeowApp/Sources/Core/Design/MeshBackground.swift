@@ -1,28 +1,13 @@
 import SwiftUI
 
-/// Clean solid background that adapts to color scheme.
-/// Replaces the heavy MeshGradient — minimal is better.
+/// Solid background — ChatGPT style (no gradient).
 struct MeshGradientBackground: View {
+    var isAnimating: Bool = false
+
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        backgroundColor
+        (colorScheme == .dark ? MeowTheme.Dark.background : MeowTheme.Light.background)
             .ignoresSafeArea()
     }
-
-    private var backgroundColor: Color {
-        colorScheme == .dark
-            ? MeowTheme.Dark.background
-            : MeowTheme.Light.background
-    }
-}
-
-#Preview("Dark") {
-    MeshGradientBackground()
-        .preferredColorScheme(.dark)
-}
-
-#Preview("Light") {
-    MeshGradientBackground()
-        .preferredColorScheme(.light)
 }

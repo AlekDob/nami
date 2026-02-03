@@ -77,12 +77,14 @@ final class CachedChatMessage {
     @Attribute(.unique) var messageId: String
     var role: String
     var content: String
+    var imageCount: Int = 0
     var timestamp: Date
 
-    init(role: String, content: String, messageId: String = UUID().uuidString) {
+    init(role: String, content: String, imageCount: Int = 0, messageId: String = UUID().uuidString) {
         self.messageId = messageId
         self.role = role
         self.content = content
+        self.imageCount = imageCount
         self.timestamp = Date()
     }
 }
@@ -91,12 +93,19 @@ extension CachedChatMessage {
     static func from(_ message: ChatMessage) -> CachedChatMessage {
         CachedChatMessage(
             role: message.role.rawValue,
-            content: message.content,
+            content: message.content.textContent,
+            imageCount: message.content.images.count,
             messageId: message.id.uuidString
         )
     }
 
     func toChatMessage() -> ChatMessage {
-        ChatMessage(role: MessageRole(rawValue: role) ?? .system, content: content)
+        let role = MessageRole(rawValue: role) ?? .system
+        if imageCount > 0 {
+            let label = imageCount == 1 ? "[1 image]" : "[\(imageCount) images]"
+            let text = content.isEmpty ? label : "\(content) \(label)"
+            return ChatMessage(role: role, content: text)
+        }
+        return ChatMessage(role: role, content: content)
     }
 }

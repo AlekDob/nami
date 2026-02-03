@@ -30,6 +30,24 @@ final class SpeechRecognizer {
         authStatus == .authorized && (recognizer?.isAvailable ?? false)
     }
 
+    var permissionErrorMessage: String {
+        switch authStatus {
+        case .notDetermined:
+            return "Tap again to allow voice input"
+        case .denied:
+            return "Voice denied — enable in Settings > MeowApp > Speech Recognition"
+        case .restricted:
+            return "Voice input restricted on this device"
+        case .authorized:
+            if !(recognizer?.isAvailable ?? false) {
+                return "Speech recognition temporarily unavailable"
+            }
+            return ""
+        @unknown default:
+            return "Voice input unavailable"
+        }
+    }
+
     func startRecording() {
         guard !isRecording else { return }
         guard let recognizer, recognizer.isAvailable else {

@@ -1,5 +1,6 @@
 #if canImport(UIKit)
 import Foundation
+import UIKit
 
 @MainActor
 @Observable
@@ -14,6 +15,31 @@ final class ShareViewModel {
         extractedContent = await ContentExtractor.extract(from: items)
     }
 
+    /// Opens the main app with shared content pre-filled in chat input
+    func openInApp(extensionContext: NSExtensionContext?) {
+        guard !extractedContent.isEmpty else { return }
+
+        isSending = true
+
+        // Save content to shared storage for the main app to read
+        let payload = buildPayload()
+        SharedConfig.sharedDefaults.set(payload, forKey: "com.meow.pendingShare")
+        SharedConfig.sharedDefaults.synchronize()
+
+        print("[ShareExt] saved pending share: \(payload.prefix(100))...")
+
+        // Open main app via URL scheme using extension's openURL
+        if let url = URL(string: "meow://share") {
+            extensionContext?.open(url) { success in
+                print("[ShareExt] openURL success: \(success)")
+            }
+        }
+
+        isDone = true
+        isSending = false
+    }
+
+    /// Legacy: send directly to server (kept for offline queue)
     func send() async {
         guard !extractedContent.isEmpty else { return }
 
@@ -37,12 +63,38 @@ final class ShareViewModel {
             try await client.sendToMeow(message: message)
             isDone = true
         } catch {
-            // Queue for later retry
             PendingShareQueue.enqueue(message: message)
             isDone = true
         }
 
         isSending = false
+    }
+
+    // MARK: - Payload
+
+    private func buildPayload() -> String {
+        var parts: [String] = []
+
+        for content in extractedContent {
+            switch content {
+            case .url(let url, _):
+                parts.append(url.absoluteString)
+            case .text(let text):
+                parts.append(text)
+            case .image(let data, _):
+                // Store as base64 data URI
+                let base64 = data.base64EncodedString()
+                parts.append("data:image/jpeg;base64,\(base64)")
+            case .pdf(_, let name):
+                parts.append("[PDF: \(name)]")
+            }
+        }
+
+        if !note.isEmpty {
+            parts.append("\n\(note)")
+        }
+
+        return parts.joined(separator: "\n")
     }
 
     var contentPreviewText: String {

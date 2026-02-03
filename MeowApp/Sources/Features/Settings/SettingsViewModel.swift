@@ -5,8 +5,12 @@ import Foundation
 final class SettingsViewModel {
     var serverURL: String
     var apiKey: String
+    var elevenLabsAPIKey: String = "" {
+        didSet { SharedConfig.elevenLabsAPIKey = elevenLabsAPIKey }
+    }
     var currentModel = ""
     var availableModels = ""
+    var modelList: [ModelInfo] = []
     var isLoadingStatus = false
     var isChangingModel = false
     var serverStatus: ServerStatus?
@@ -24,6 +28,7 @@ final class SettingsViewModel {
         self.wsManager = wsManager
         self.serverURL = authManager.serverURL
         self.apiKey = authManager.apiKey
+        self.elevenLabsAPIKey = SharedConfig.elevenLabsAPIKey
         self.biometricEnabled = authManager.biometricEnabled
     }
 
@@ -71,10 +76,16 @@ final class SettingsViewModel {
     func loadModels() {
         Task { @MainActor in
             do {
-                let response = try await apiClient.fetchModels()
-                self.availableModels = response.models
+                let response = try await apiClient.fetchModelList()
+                self.modelList = response.models
+                if let current = response.models.first(where: { $0.current }) {
+                    self.currentModel = current.id
+                }
             } catch {
-                self.errorMessage = error.localizedDescription
+                // Fallback to text-based models endpoint
+                if let response = try? await apiClient.fetchModels() {
+                    self.availableModels = response.models
+                }
             }
         }
     }
@@ -87,6 +98,10 @@ final class SettingsViewModel {
             do {
                 let response = try await apiClient.setModel(id: modelId)
                 self.currentModel = modelId
+                // Update current flag in local list
+                self.modelList = self.modelList.map { m in
+                    ModelInfo(id: m.id, label: m.label, preset: m.preset, vision: m.vision, toolUse: m.toolUse, current: m.id == modelId)
+                }
                 self.successMessage = response.message
                 self.isChangingModel = false
                 scheduleDismissSuccess()

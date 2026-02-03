@@ -51,12 +51,19 @@ targets:
         NSFaceIDUsageDescription: "Unlock MeowApp with Face ID"
         NSSpeechRecognitionUsageDescription: "Meow uses speech recognition for voice input"
         NSMicrophoneUsageDescription: "Meow needs the microphone for voice input"
+        NSPhotoLibraryUsageDescription: "Meow needs access to your photos to share images in chat"
+        NSCameraUsageDescription: "Meow needs camera access to take photos for chat"
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
+        CFBundleURLTypes:
+          - CFBundleURLName: com.alekdob.MeowApp
+            CFBundleURLSchemes:
+              - meow
     dependencies:
       - sdk: SwiftUI.framework
       - sdk: SwiftData.framework
       - sdk: LocalAuthentication.framework
+      - sdk: PhotosUI.framework
       - target: MeowShareExtension
         platforms: [iOS]
 
@@ -80,6 +87,9 @@ targets:
         CODE_SIGN_ENTITLEMENTS: ShareExtension/MeowShareExtension.entitlements
     entitlements:
       path: ShareExtension/MeowShareExtension.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.alekdob.MeowApp
 
 schemes:
   MeowApp_iOS:

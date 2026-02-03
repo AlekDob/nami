@@ -7,10 +7,12 @@ struct GlowButton: View {
     let gradient: LinearGradient?
     let action: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+
     init(
         _ title: String,
         icon: String? = nil,
-        color: Color = MeowTheme.accent,
+        color: Color = .primary,
         gradient: LinearGradient? = nil,
         action: @escaping () -> Void
     ) {
@@ -26,14 +28,14 @@ struct GlowButton: View {
             HStack(spacing: 6) {
                 if let icon {
                     Image(systemName: icon)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.system(size: 14, weight: .medium))
                 }
                 Text(title)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 15, weight: .medium))
             }
-            .foregroundColor(.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .foregroundColor(colorScheme == .dark ? MeowTheme.Dark.background : MeowTheme.Light.background)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
             .background(color)
             .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerSM, style: .continuous))
         }
@@ -48,7 +50,7 @@ struct GlowIconButton: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    init(_ icon: String, color: Color = MeowTheme.accent, action: @escaping () -> Void) {
+    init(_ icon: String, color: Color = .primary, action: @escaping () -> Void) {
         self.icon = icon
         self.color = color
         self.action = action
@@ -59,15 +61,9 @@ struct GlowIconButton: View {
             Image(systemName: icon)
                 .font(.system(size: 15, weight: .medium))
                 .foregroundColor(color)
-                .frame(width: 32, height: 32)
+                .frame(width: 36, height: 36)
                 .background(colorScheme == .dark ? MeowTheme.Dark.surface : MeowTheme.Light.surface)
                 .clipShape(Circle())
-                .overlay(
-                    Circle().stroke(
-                        colorScheme == .dark ? MeowTheme.Dark.border : MeowTheme.Light.border,
-                        lineWidth: 1
-                    )
-                )
         }
         .buttonStyle(.plain)
     }

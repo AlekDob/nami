@@ -3,6 +3,7 @@ import SwiftData
 
 struct MemoryBrowserView: View {
     @Bindable var viewModel: MemoryViewModel
+    var onMenuTap: (() -> Void)?
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
 
@@ -17,6 +18,7 @@ struct MemoryBrowserView: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
             #endif
+            .toolbar { menuButton }
             .onAppear {
                 viewModel.setModelContext(modelContext)
                 viewModel.loadRecentIfNeeded()
@@ -33,7 +35,6 @@ struct MemoryBrowserView: View {
         }
         .padding(.horizontal, MeowTheme.spacingMD)
         .padding(.vertical, MeowTheme.spacingSM + 2)
-        .background(surfaceColor)
     }
 
     private var searchField: some View {
@@ -48,7 +49,7 @@ struct MemoryBrowserView: View {
     }
 
     private var searchButton: some View {
-        GlowIconButton("magnifyingglass", color: MeowTheme.accent) {
+        GlowIconButton("magnifyingglass") {
             viewModel.search()
         }
     }
@@ -120,7 +121,23 @@ struct MemoryBrowserView: View {
         }
     }
 
+    // MARK: - Toolbar
+
+    @ToolbarContentBuilder
+    private var menuButton: some ToolbarContent {
+        ToolbarItem(placement: .navigation) {
+            Button { onMenuTap?() } label: {
+                Image(systemName: "line.3.horizontal")
+                    .foregroundColor(primaryColor)
+            }
+        }
+    }
+
     // MARK: - Colors
+
+    private var primaryColor: Color {
+        colorScheme == .dark ? MeowTheme.Dark.textPrimary : MeowTheme.Light.textPrimary
+    }
 
     private var bgColor: Color {
         colorScheme == .dark ? MeowTheme.Dark.background : MeowTheme.Light.background

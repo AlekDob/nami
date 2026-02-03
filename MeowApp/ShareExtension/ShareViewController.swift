@@ -8,8 +8,16 @@ class ShareViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
+        print("[ShareExt] === ShareViewController loaded ===")
+        print("[ShareExt] appGroupID: \(SharedConfig.appGroupID)")
+        print("[ShareExt] sharedDefaults object: \(SharedConfig.sharedDefaults)")
+        print("[ShareExt] isConfigured: \(SharedConfig.isConfigured)")
+        print("[ShareExt] serverURL: '\(SharedConfig.serverURL)'")
+        print("[ShareExt] apiKey empty: \(SharedConfig.apiKey.isEmpty)")
+
         let shareView = ShareView(
             viewModel: viewModel,
+            extensionContext: extensionContext,
             onDismiss: { [weak self] in
                 self?.extensionContext?.completeRequest(
                     returningItems: nil

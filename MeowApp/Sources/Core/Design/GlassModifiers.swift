@@ -1,25 +1,22 @@
 import SwiftUI
 
-// MARK: - Card Modifier (clean surface, no glass)
+// MARK: - Card Modifier (solid surface)
 
 struct GlassCardModifier: ViewModifier {
-    @Environment(\.colorScheme) private var colorScheme
     let cornerRadius: CGFloat
     let padding: CGFloat
+
+    @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
         content
             .padding(padding)
             .background(colorScheme == .dark ? MeowTheme.Dark.surface : MeowTheme.Light.surface)
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(colorScheme == .dark ? MeowTheme.Dark.border : MeowTheme.Light.border, lineWidth: 1)
-            )
     }
 }
 
-// MARK: - Input Modifier (clean)
+// MARK: - Input Modifier (solid surface)
 
 struct GlassInputModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
@@ -30,10 +27,6 @@ struct GlassInputModifier: ViewModifier {
             .padding(.vertical, 10)
             .background(colorScheme == .dark ? MeowTheme.Dark.surface : MeowTheme.Light.surface)
             .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerSM, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: MeowTheme.cornerSM, style: .continuous)
-                    .stroke(colorScheme == .dark ? MeowTheme.Dark.border : MeowTheme.Light.border, lineWidth: 1)
-            )
     }
 }
 
@@ -52,7 +45,7 @@ extension View {
     }
 
     func gradientText(_ gradient: LinearGradient = MeowTheme.accentGradient) -> some View {
-        self.foregroundColor(MeowTheme.accent)
+        self.foregroundColor(.primary)
     }
 
     func staggeredAppear(index: Int) -> some View {

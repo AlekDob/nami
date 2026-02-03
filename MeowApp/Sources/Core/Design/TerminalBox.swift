@@ -20,32 +20,16 @@ struct TerminalBox<Content: View>: View {
                 .padding(.top, title == nil ? MeowTheme.spacingMD : 0)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(surfaceColor)
+        .background(colorScheme == .dark ? MeowTheme.Dark.surface : MeowTheme.Light.surface)
         .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerMD, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: MeowTheme.cornerMD, style: .continuous)
-                .stroke(borderColor, lineWidth: 1)
-        )
     }
 
     private func titleRow(_ title: String) -> some View {
         Text(title)
-            .font(MeowTheme.headline)
-            .foregroundColor(primaryColor)
+            .font(.headline)
+            .foregroundColor(.primary)
             .padding(.horizontal, MeowTheme.spacingMD)
             .padding(.top, MeowTheme.spacingMD)
             .padding(.bottom, MeowTheme.spacingSM)
-    }
-
-    private var surfaceColor: Color {
-        colorScheme == .dark ? MeowTheme.Dark.surface : MeowTheme.Light.surface
-    }
-
-    private var borderColor: Color {
-        colorScheme == .dark ? MeowTheme.Dark.border : MeowTheme.Light.border
-    }
-
-    private var primaryColor: Color {
-        colorScheme == .dark ? MeowTheme.Dark.textPrimary : MeowTheme.Light.textPrimary
     }
 }

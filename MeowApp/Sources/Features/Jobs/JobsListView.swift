@@ -2,6 +2,7 @@ import SwiftUI
 
 struct JobsListView: View {
     @Bindable var viewModel: JobsViewModel
+    var onMenuTap: (() -> Void)?
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -20,7 +21,10 @@ struct JobsListView: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
             #endif
-            .toolbar { addButton }
+            .toolbar {
+                menuButton
+                addButton
+            }
             .sheet(isPresented: $viewModel.showCreateSheet) {
                 CreateJobSheet(viewModel: viewModel)
             }
@@ -79,11 +83,7 @@ struct JobsListView: View {
         }
         .padding(MeowTheme.spacingSM + 2)
         .background(surfaceColor)
-        .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerRadiusSM, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: MeowTheme.cornerRadiusSM, style: .continuous)
-                .stroke(borderColor, lineWidth: 1)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerSM, style: .continuous))
     }
 
     private func deleteMenu(_ job: Job) -> some View {
@@ -95,15 +95,29 @@ struct JobsListView: View {
     }
 
     @ToolbarContentBuilder
+    private var menuButton: some ToolbarContent {
+        ToolbarItem(placement: .navigation) {
+            Button { onMenuTap?() } label: {
+                Image(systemName: "line.3.horizontal")
+                    .foregroundColor(primaryColor)
+            }
+        }
+    }
+
+    @ToolbarContentBuilder
     private var addButton: some ToolbarContent {
         ToolbarItem(placement: .primaryAction) {
             Button {
                 viewModel.showCreateSheet = true
             } label: {
                 Image(systemName: "plus.circle.fill")
-                    .foregroundColor(MeowTheme.accent)
+                    .foregroundColor(.primary)
             }
         }
+    }
+
+    private var primaryColor: Color {
+        colorScheme == .dark ? MeowTheme.Dark.textPrimary : MeowTheme.Light.textPrimary
     }
 
     // MARK: - Colors

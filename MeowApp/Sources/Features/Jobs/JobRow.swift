@@ -15,11 +15,7 @@ struct JobRow: View {
         }
         .padding(MeowTheme.spacingSM + 4)
         .background(surfaceColor)
-        .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerRadiusSM, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: MeowTheme.cornerRadiusSM, style: .continuous)
-                .stroke(borderColor, lineWidth: 1)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerSM, style: .continuous))
     }
 
     private var statusIndicator: some View {
@@ -35,7 +31,7 @@ struct JobRow: View {
                 .foregroundColor(primaryColor)
             Text(job.cron)
                 .font(.system(.caption, design: .monospaced))
-                .foregroundColor(MeowTheme.accent)
+                .foregroundColor(secondaryColor)
             Text(job.task)
                 .font(.subheadline)
                 .foregroundColor(secondaryColor)
@@ -59,10 +55,6 @@ struct JobRow: View {
 
     private var surfaceColor: Color {
         colorScheme == .dark ? MeowTheme.Dark.surface : MeowTheme.Light.surface
-    }
-
-    private var borderColor: Color {
-        colorScheme == .dark ? MeowTheme.Dark.border : MeowTheme.Light.border
     }
 
     private var primaryColor: Color {

@@ -78,45 +78,60 @@ struct VoiceInputButton: View {
 struct WaveformView: View {
     let audioLevel: Float
     let isRecording: Bool
-    let barCount: Int = 5
+    let barCount: Int = 9
 
     var body: some View {
-        HStack(spacing: 3) {
+        HStack(spacing: 2) {
             ForEach(0..<barCount, id: \.self) { index in
                 WaveformBar(
                     audioLevel: audioLevel,
                     index: index,
+                    barCount: barCount,
                     isRecording: isRecording
                 )
             }
         }
-        .frame(height: 20)
+        .frame(height: 24)
     }
 }
 
 private struct WaveformBar: View {
     let audioLevel: Float
     let index: Int
+    let barCount: Int
     let isRecording: Bool
 
-    @State private var animatedHeight: CGFloat = 3
+    @State private var animatedHeight: CGFloat = 2
+
+    private var barColor: Color {
+        let center = Float(barCount) / 2.0
+        let dist = abs(Float(index) - center) / center
+        return MeowTheme.red.opacity(Double(1.0 - dist * 0.4))
+    }
+
+    private var heightMultiplier: Float {
+        let center = Float(barCount) / 2.0
+        let dist = abs(Float(index) - center) / center
+        return 1.0 - dist * 0.3
+    }
 
     var body: some View {
         RoundedRectangle(cornerRadius: 1.5)
-            .fill(MeowTheme.red.opacity(0.8))
-            .frame(width: 3, height: animatedHeight)
+            .fill(barColor)
+            .frame(width: 2.5, height: animatedHeight)
             .onChange(of: audioLevel) { _, level in
                 guard isRecording else { return }
-                let variation = Float.random(in: 0.5...1.5)
-                let height = max(3, CGFloat(level * variation) * 18)
-                withAnimation(.spring(response: 0.15, dampingFraction: 0.6)) {
+                let variation = Float.random(in: 0.6...1.4)
+                let scaled = level * variation * heightMultiplier
+                let height = max(2, CGFloat(scaled) * 22)
+                withAnimation(.spring(response: 0.12, dampingFraction: 0.55)) {
                     animatedHeight = height
                 }
             }
             .onChange(of: isRecording) { _, recording in
                 if !recording {
-                    withAnimation(.easeOut(duration: 0.2)) {
-                        animatedHeight = 3
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        animatedHeight = 2
                     }
                 }
             }

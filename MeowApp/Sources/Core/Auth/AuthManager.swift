@@ -14,7 +14,7 @@ final class AuthManager {
     private let biometricKey = "com.meow.biometric"
 
     init() {
-        migrateServerURLIfNeeded()
+        syncToSharedStorage()
         checkBiometricAvailability()
         biometricEnabled = UserDefaults.standard.bool(forKey: biometricKey)
     }
@@ -23,9 +23,7 @@ final class AuthManager {
 
     var apiKey: String {
         get { SharedConfig.apiKey }
-        set { SharedConfig.saveKeychain(
-            service: SharedConfig.keychainService, value: newValue
-        ) }
+        set { SharedConfig.saveAPIKey(newValue) }
     }
 
     var serverURL: String {
@@ -76,16 +74,38 @@ final class AuthManager {
 
     // MARK: - Migration
 
-    private func migrateServerURLIfNeeded() {
-        let legacyKey = "com.meow.serverurl"
-        if let legacyURL = UserDefaults.standard.string(forKey: legacyKey),
-           !legacyURL.isEmpty,
-           SharedConfig.sharedDefaults.string(
-               forKey: SharedConfig.serverURLKey
-           ) == nil
-        {
-            SharedConfig.serverURL = legacyURL
+    // Always sync credentials to shared storage on every launch
+    // so the Share Extension can access them
+    private func syncToSharedStorage() {
+        print("[Auth] syncToSharedStorage starting...")
+
+        // Sync server URL
+        let url = UserDefaults.standard.string(
+            forKey: SharedConfig.serverURLKey
+        ) ?? ""
+        if !url.isEmpty {
+            SharedConfig.serverURL = url
+            print("[Auth] synced serverURL='\(url.prefix(30))...'")
         }
+
+        // Sync API key from Keychain → shared UserDefaults
+        if let key = SharedConfig.readKeychain(
+            service: SharedConfig.keychainService
+        ), !key.isEmpty {
+            SharedConfig.saveAPIKey(key)
+            print("[Auth] synced apiKey to shared (\(key.count) chars)")
+        } else {
+            print("[Auth] WARNING: no apiKey in Keychain!")
+        }
+
+        // Verify
+        let sharedURL = SharedConfig.sharedDefaults.string(
+            forKey: SharedConfig.serverURLKey
+        )
+        let sharedKey = SharedConfig.sharedDefaults.string(
+            forKey: SharedConfig.apiKeyDefaultsKey
+        )
+        print("[Auth] verify shared: url='\(sharedURL ?? "nil")' apiKey=\(sharedKey != nil ? "SET" : "NIL")")
     }
 
     // MARK: - Biometric Check

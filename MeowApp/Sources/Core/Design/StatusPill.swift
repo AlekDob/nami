@@ -31,8 +31,8 @@ struct StatusPill: View {
                 .fill(status.color)
                 .frame(width: 6, height: 6)
             Text(status.label)
-                .font(MeowTheme.monoSmall)
-                .foregroundColor(colorScheme == .dark ? MeowTheme.Dark.textSecondary : MeowTheme.Light.textSecondary)
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
     }
 }

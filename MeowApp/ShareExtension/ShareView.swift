@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ShareView: View {
     let viewModel: ShareViewModel
+    let extensionContext: NSExtensionContext?
     let onDismiss: () -> Void
 
     var body: some View {
@@ -106,14 +107,15 @@ struct ShareView: View {
 
     private var sendButton: some View {
         Button {
-            Task {
-                await viewModel.send()
-                if viewModel.isDone { onDismiss() }
+            viewModel.openInApp(extensionContext: extensionContext)
+            // Small delay to allow URL to open before dismissing
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                onDismiss()
             }
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: "paperplane.fill")
-                Text("Send")
+                Image(systemName: "arrow.up.forward.app")
+                Text("Open in Meow")
             }
             .foregroundStyle(Color(hex: 0x10A37F))
         }

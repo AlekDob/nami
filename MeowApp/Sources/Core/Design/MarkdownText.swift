@@ -5,7 +5,7 @@ import SwiftUI
 /// code blocks, lists, horizontal rules, and links.
 struct MarkdownText: View {
     let content: String
-    let textColor: Color
+    var textColor: Color = .primary
 
     var body: some View {
         VStack(alignment: .leading, spacing: MeowTheme.spacingSM) {

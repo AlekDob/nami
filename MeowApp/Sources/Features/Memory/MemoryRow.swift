@@ -13,21 +13,17 @@ struct MemoryRow: View {
         }
         .padding(MeowTheme.spacingSM + 4)
         .background(surfaceColor)
-        .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerRadiusSM, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: MeowTheme.cornerRadiusSM, style: .continuous)
-                .stroke(borderColor, lineWidth: 1)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerSM, style: .continuous))
     }
 
     private var filePathRow: some View {
         HStack {
             Image(systemName: "doc.text")
                 .font(.caption)
-                .foregroundColor(MeowTheme.accent)
+                .foregroundColor(secondaryColor)
             Text(result.path)
                 .font(.system(.caption, design: .monospaced))
-                .foregroundColor(MeowTheme.accent)
+                .foregroundColor(secondaryColor)
                 .lineLimit(1)
             Spacer()
             scoreLabel
@@ -45,12 +41,8 @@ struct MemoryRow: View {
     }
 
     private var scoreColor: Color {
-        if result.score > 0.8 {
-            return MeowTheme.green
-        }
-        if result.score > 0.5 {
-            return MeowTheme.yellow
-        }
+        if result.score > 0.8 { return MeowTheme.green }
+        if result.score > 0.5 { return MeowTheme.yellow }
         return MeowTheme.red
     }
 
@@ -80,12 +72,12 @@ struct MemoryRow: View {
         colorScheme == .dark ? MeowTheme.Dark.surface : MeowTheme.Light.surface
     }
 
-    private var borderColor: Color {
-        colorScheme == .dark ? MeowTheme.Dark.border : MeowTheme.Light.border
-    }
-
     private var primaryColor: Color {
         colorScheme == .dark ? MeowTheme.Dark.textPrimary : MeowTheme.Light.textPrimary
+    }
+
+    private var secondaryColor: Color {
+        colorScheme == .dark ? MeowTheme.Dark.textSecondary : MeowTheme.Light.textSecondary
     }
 
     private var mutedColor: Color {

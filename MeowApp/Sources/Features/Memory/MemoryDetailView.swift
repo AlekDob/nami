@@ -30,10 +30,10 @@ struct MemoryDetailView: View {
         VStack(alignment: .leading, spacing: MeowTheme.spacingSM) {
             HStack {
                 Image(systemName: "doc.text.fill")
-                    .foregroundColor(MeowTheme.accent)
+                    .foregroundColor(secondaryColor)
                 Text(result.path)
                     .font(.system(.caption, design: .monospaced))
-                    .foregroundColor(MeowTheme.accent)
+                    .foregroundColor(secondaryColor)
             }
             HStack(spacing: MeowTheme.spacingSM) {
                 metadataChip("L\(result.startLine)-\(result.endLine)")
@@ -53,9 +53,6 @@ struct MemoryDetailView: View {
             .padding(.vertical, 3)
             .background(surfaceColor)
             .clipShape(Capsule())
-            .overlay(
-                Capsule().stroke(borderColor, lineWidth: 1)
-            )
     }
 
     private var contentSection: some View {
@@ -74,7 +71,7 @@ struct MemoryDetailView: View {
         TerminalBox(title: fileName) {
             HStack {
                 ProgressView()
-                    .tint(MeowTheme.accent)
+                    .tint(.primary)
                 Text("Loading...")
                     .font(.subheadline)
                     .foregroundColor(secondaryColor)
@@ -108,10 +105,6 @@ struct MemoryDetailView: View {
 
     private var surfaceColor: Color {
         colorScheme == .dark ? MeowTheme.Dark.surface : MeowTheme.Light.surface
-    }
-
-    private var borderColor: Color {
-        colorScheme == .dark ? MeowTheme.Dark.border : MeowTheme.Light.border
     }
 
     private var primaryColor: Color {

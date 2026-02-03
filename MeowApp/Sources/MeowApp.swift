@@ -62,30 +62,58 @@ struct MeowApp: App {
             self.modelContainer = try ModelContainer(for: schema, configurations: [config])
             print("[App] ModelContainer created OK")
         } catch {
-            fatalError("Failed to create model container: \(error)")
+            print("[App] ModelContainer migration failed: \(error). Deleting old store...")
+            let url = config.url
+            let related = [url, url.appendingPathExtension("wal"), url.appendingPathExtension("shm")]
+            for file in related { try? FileManager.default.removeItem(at: file) }
+            do {
+                self.modelContainer = try ModelContainer(for: schema, configurations: [config])
+                print("[App] ModelContainer recreated OK after purge")
+            } catch {
+                fatalError("Failed to create model container after purge: \(error)")
+            }
         }
     }
+
+    @State private var pendingShareContent: String?
 
     var body: some Scene {
         WindowGroup {
             rootView
                 .task { await configureServices() }
+                .onOpenURL { url in
+                    handleDeepLink(url)
+                }
         }
         .modelContainer(modelContainer)
+    }
+
+    private func handleDeepLink(_ url: URL) {
+        print("[App] handleDeepLink: \(url)")
+        guard url.scheme == "meow" else { return }
+
+        if url.host == "share" {
+            // Read pending share from shared storage
+            if let content = SharedConfig.sharedDefaults.string(
+                forKey: "com.meow.pendingShare"
+            ), !content.isEmpty {
+                print("[App] found pending share: \(content.prefix(100))...")
+                pendingShareContent = content
+                // Clear after reading
+                SharedConfig.sharedDefaults.removeObject(forKey: "com.meow.pendingShare")
+                // Post notification for ChatViewModel to pick up
+                NotificationCenter.default.post(
+                    name: Notification.Name("pendingShareReceived"),
+                    object: content
+                )
+            }
+        }
     }
 
     @ViewBuilder
     private var rootView: some View {
         if !isReady {
-            // Show a loading splash while services configure
-            VStack(spacing: MeowTheme.spacingLG) {
-                ASCIICatView(mood: .idle, size: .large)
-                Text("meow")
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundColor(MeowTheme.accent)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.primary.colorInvert())
+            splashScreen
         } else if authManager.biometricEnabled && !authManager.isAuthenticated {
             lockScreen
         } else {
@@ -93,19 +121,38 @@ struct MeowApp: App {
         }
     }
 
-    private var lockScreen: some View {
-        VStack(spacing: MeowTheme.spacingLG) {
-            ASCIICatView(mood: .sleeping, size: .large)
-            Text("meow")
-                .font(.system(size: 32, weight: .bold))
-                .foregroundColor(MeowTheme.accent)
-            Text("Unlock to continue")
-                .foregroundColor(.secondary)
-            GlowButton("Unlock", icon: "faceid", color: MeowTheme.accent) {
-                Task { await unlock() }
+    private var splashScreen: some View {
+        ZStack {
+            MeshGradientBackground()
+            VStack(spacing: MeowTheme.spacingMD) {
+                Image(systemName: "cat.fill")
+                    .font(.system(size: 48))
+                    .foregroundColor(.primary)
+                Text("meow")
+                    .font(.title2.bold())
+                    .foregroundColor(.primary)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var lockScreen: some View {
+        ZStack {
+            MeshGradientBackground()
+            VStack(spacing: MeowTheme.spacingLG) {
+                Image(systemName: "cat.fill")
+                    .font(.system(size: 48))
+                    .foregroundColor(.primary)
+                Text("meow")
+                    .font(.title2.bold())
+                    .foregroundColor(.primary)
+                Text("Unlock to continue")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                GlowButton("Unlock", icon: "faceid", color: MeowTheme.green) {
+                    Task { await unlock() }
+                }
+            }
+        }
         .onAppear { Task { await unlock() } }
     }
 
@@ -133,11 +180,9 @@ struct MeowApp: App {
             authManager.skipAuth()
         }
 
-        // Mark ready BEFORE push (push permission dialog can block)
         print("[App] marking isReady = true")
         isReady = true
 
-        // Initialize push notifications (non-blocking for UI)
         print("[App] initializing push...")
         let push = PushNotificationManager(apiClient: apiClient)
         pushManager = push
@@ -147,7 +192,6 @@ struct MeowApp: App {
         await push.requestPermission()
         print("[App] push ready, token: \(push.deviceToken ?? "nil")")
 
-        // Drain any pending shares from the offline queue
         await drainPendingShares()
     }
 
@@ -161,7 +205,6 @@ struct MeowApp: App {
                 _ = try await apiClient.sendChat(messages: messages)
                 print("[App] sent pending share \(share.id)")
             } catch {
-                // Re-queue failed items
                 PendingShareQueue.enqueue(message: share.message)
                 print("[App] failed to send share \(share.id): \(error)")
                 break

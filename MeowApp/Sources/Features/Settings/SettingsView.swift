@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var viewModel: SettingsViewModel
     let wsManager: WebSocketManager
+    var onMenuTap: (() -> Void)?
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -11,6 +12,7 @@ struct SettingsView: View {
             ScrollView {
                 VStack(spacing: MeowTheme.spacingMD) {
                     connectionSection
+                    elevenLabsSection
                     serverSection
                     modelSection
                     securitySection
@@ -24,6 +26,7 @@ struct SettingsView: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
             #endif
+            .toolbar { menuButton }
             .onAppear { viewModel.loadServerStatus(); viewModel.loadModels() }
         }
     }
@@ -39,8 +42,32 @@ struct SettingsView: View {
                     GlowButton("Save", icon: "checkmark", color: MeowTheme.green) {
                         viewModel.saveConfiguration()
                     }
-                    GlowButton("Test", icon: "bolt.fill", color: MeowTheme.accent) {
+                    GlowButton("Test", icon: "bolt.fill") {
                         viewModel.testConnection()
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - ElevenLabs TTS
+
+    private var elevenLabsSection: some View {
+        TerminalBox(title: "Voice (ElevenLabs)") {
+            VStack(spacing: MeowTheme.spacingSM) {
+                formField(label: "ElevenLabs API Key", placeholder: "sk_...", text: $viewModel.elevenLabsAPIKey, isSecure: true)
+                HStack {
+                    Text("Premium TTS")
+                        .font(.subheadline)
+                        .foregroundColor(secondaryColor)
+                    Spacer()
+                    if viewModel.elevenLabsAPIKey.isEmpty {
+                        Text("Not configured")
+                            .font(.caption)
+                            .foregroundColor(mutedColor)
+                    } else {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(MeowTheme.green)
                     }
                 }
             }
@@ -59,7 +86,7 @@ struct SettingsView: View {
                 }
                 if viewModel.isLoadingStatus {
                     ProgressView()
-                        .tint(MeowTheme.accent)
+                        .tint(.primary)
                 } else if let status = viewModel.serverStatus {
                     serverStatusRows(status)
                 }
@@ -111,36 +138,85 @@ struct SettingsView: View {
     private var modelSection: some View {
         TerminalBox(title: "Model") {
             VStack(alignment: .leading, spacing: MeowTheme.spacingSM) {
-                Text("Current: \(viewModel.currentModel)")
-                    .font(.subheadline)
-                    .foregroundColor(MeowTheme.accent)
-                if !viewModel.availableModels.isEmpty {
-                    modelsText
+                if !viewModel.modelList.isEmpty {
+                    modelPicker
+                } else {
+                    Text("Current: \(viewModel.currentModel)")
+                        .font(.subheadline)
+                        .foregroundColor(primaryColor)
+                    if !viewModel.availableModels.isEmpty {
+                        Text(viewModel.availableModels)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(secondaryColor)
+                            .textSelection(.enabled)
+                    }
                 }
-                modelInput
+                if viewModel.isChangingModel {
+                    ProgressView()
+                        .tint(.primary)
+                }
             }
         }
     }
 
-    private var modelsText: some View {
-        Text(viewModel.availableModels)
-            .font(.system(.caption, design: .monospaced))
-            .foregroundColor(secondaryColor)
-            .textSelection(.enabled)
-    }
-
-    @State private var modelIdInput = ""
-
-    private var modelInput: some View {
-        HStack(spacing: MeowTheme.spacingSM) {
-            TextField("model-id", text: $modelIdInput)
-                .font(.system(.caption, design: .monospaced))
-                .textFieldStyle(.plain)
-                .glassInput()
-            GlowButton("Set", icon: "arrow.right", color: MeowTheme.yellow) {
-                viewModel.changeModel(to: modelIdInput)
+    private var modelPicker: some View {
+        VStack(alignment: .leading, spacing: MeowTheme.spacingSM) {
+            ForEach(["fast", "smart", "pro"], id: \.self) { preset in
+                let models = viewModel.modelList.filter { $0.preset == preset }
+                if !models.isEmpty {
+                    Text(preset.uppercased())
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundColor(mutedColor)
+                    ForEach(models) { model in
+                        modelRow(model)
+                    }
+                }
             }
         }
+    }
+
+    private func modelRow(_ model: ModelInfo) -> some View {
+        Button {
+            guard !model.current else { return }
+            viewModel.changeModel(to: model.id)
+        } label: {
+            HStack(spacing: MeowTheme.spacingSM) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(model.label)
+                        .font(.system(.subheadline, design: .monospaced))
+                        .foregroundColor(model.current ? primaryColor : secondaryColor)
+                    HStack(spacing: 6) {
+                        if model.vision {
+                            badge("vision", color: MeowTheme.green)
+                        }
+                        if model.toolUse {
+                            badge("tools", color: secondaryColor)
+                        }
+                    }
+                }
+                Spacer()
+                if model.current {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(MeowTheme.green)
+                        .font(.system(size: 16))
+                }
+            }
+            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
+            .background(model.current ? surfaceHoverColor : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func badge(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.system(size: 9, design: .monospaced))
+            .foregroundColor(color)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(color.opacity(0.1))
+            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
     }
 
     // MARK: - Security
@@ -160,7 +236,7 @@ struct SettingsView: View {
     private var biometricToggle: some View {
         HStack {
             Image(systemName: "faceid")
-                .foregroundColor(MeowTheme.accent)
+                .foregroundColor(primaryColor)
             Text("Face ID / Touch ID")
                 .foregroundColor(primaryColor)
             Spacer()
@@ -187,11 +263,7 @@ struct SettingsView: View {
                 }
                 .padding(MeowTheme.spacingSM + 2)
                 .background(surfaceColor)
-                .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerRadiusSM, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: MeowTheme.cornerRadiusSM, style: .continuous)
-                        .stroke(borderColor, lineWidth: 1)
-                )
+                .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerSM, style: .continuous))
             }
         }
     }
@@ -214,11 +286,7 @@ struct SettingsView: View {
         }
         .padding(MeowTheme.spacingSM + 2)
         .background(surfaceColor)
-        .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerRadiusSM, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: MeowTheme.cornerRadiusSM, style: .continuous)
-                .stroke(color.opacity(0.3), lineWidth: 1)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerSM, style: .continuous))
     }
 
     // MARK: - Form helpers
@@ -253,29 +321,24 @@ struct SettingsView: View {
         return "\(rss) MB"
     }
 
+    // MARK: - Toolbar
+
+    @ToolbarContentBuilder
+    private var menuButton: some ToolbarContent {
+        ToolbarItem(placement: .navigation) {
+            Button { onMenuTap?() } label: {
+                Image(systemName: "line.3.horizontal")
+                    .foregroundColor(primaryColor)
+            }
+        }
+    }
+
     // MARK: - Colors
 
-    private var bgColor: Color {
-        colorScheme == .dark ? MeowTheme.Dark.background : MeowTheme.Light.background
-    }
-
-    private var surfaceColor: Color {
-        colorScheme == .dark ? MeowTheme.Dark.surface : MeowTheme.Light.surface
-    }
-
-    private var borderColor: Color {
-        colorScheme == .dark ? MeowTheme.Dark.border : MeowTheme.Light.border
-    }
-
-    private var primaryColor: Color {
-        colorScheme == .dark ? MeowTheme.Dark.textPrimary : MeowTheme.Light.textPrimary
-    }
-
-    private var secondaryColor: Color {
-        colorScheme == .dark ? MeowTheme.Dark.textSecondary : MeowTheme.Light.textSecondary
-    }
-
-    private var mutedColor: Color {
-        colorScheme == .dark ? MeowTheme.Dark.textMuted : MeowTheme.Light.textMuted
-    }
+    private var bgColor: Color { colorScheme == .dark ? MeowTheme.Dark.background : MeowTheme.Light.background }
+    private var primaryColor: Color { colorScheme == .dark ? MeowTheme.Dark.textPrimary : MeowTheme.Light.textPrimary }
+    private var secondaryColor: Color { colorScheme == .dark ? MeowTheme.Dark.textSecondary : MeowTheme.Light.textSecondary }
+    private var mutedColor: Color { colorScheme == .dark ? MeowTheme.Dark.textMuted : MeowTheme.Light.textMuted }
+    private var surfaceColor: Color { colorScheme == .dark ? MeowTheme.Dark.surface : MeowTheme.Light.surface }
+    private var surfaceHoverColor: Color { colorScheme == .dark ? MeowTheme.Dark.surfaceHover : MeowTheme.Light.surfaceHover }
 }

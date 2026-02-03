@@ -42,6 +42,10 @@ actor MeowAPIClient {
         try await get("/api/models")
     }
 
+    func fetchModelList() async throws -> ModelListResponse {
+        try await get("/api/models/list")
+    }
+
     func setModel(id: String) async throws -> SetModelResponse {
         let body = SetModelRequest(id: id)
         return try await put("/api/model", body: body)

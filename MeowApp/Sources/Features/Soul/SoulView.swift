@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SoulView: View {
     @Bindable var viewModel: SoulViewModel
+    var onMenuTap: (() -> Void)?
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -21,7 +22,10 @@ struct SoulView: View {
             #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
             #endif
-            .toolbar { toolbarItems }
+            .toolbar {
+                menuButton
+                toolbarItems
+            }
             .onAppear { viewModel.loadSoul() }
         }
     }
@@ -43,7 +47,7 @@ struct SoulView: View {
         TerminalBox(title: "soul.md") {
             HStack {
                 ProgressView()
-                    .tint(MeowTheme.accent)
+                    .tint(.primary)
                 Text("Loading personality...")
                     .font(.subheadline)
                     .foregroundColor(secondaryColor)
@@ -89,11 +93,7 @@ struct SoulView: View {
         }
         .padding(MeowTheme.spacingSM + 2)
         .background(surfaceColor)
-        .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerRadiusSM, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: MeowTheme.cornerRadiusSM, style: .continuous)
-                .stroke(MeowTheme.red.opacity(0.3), lineWidth: 1)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerSM, style: .continuous))
     }
 
     private var successBanner: some View {
@@ -106,15 +106,21 @@ struct SoulView: View {
         }
         .padding(MeowTheme.spacingSM + 2)
         .background(surfaceColor)
-        .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerRadiusSM, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: MeowTheme.cornerRadiusSM, style: .continuous)
-                .stroke(MeowTheme.green.opacity(0.3), lineWidth: 1)
-        )
+        .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerSM, style: .continuous))
         .transition(.opacity)
     }
 
     // MARK: - Toolbar
+
+    @ToolbarContentBuilder
+    private var menuButton: some ToolbarContent {
+        ToolbarItem(placement: .navigation) {
+            Button { onMenuTap?() } label: {
+                Image(systemName: "line.3.horizontal")
+                    .foregroundColor(primaryColor)
+            }
+        }
+    }
 
     @ToolbarContentBuilder
     private var toolbarItems: some ToolbarContent {
@@ -132,7 +138,7 @@ struct SoulView: View {
             viewModel.toggleEditing()
         } label: {
             Image(systemName: "pencil")
-                .foregroundColor(MeowTheme.accent)
+                .foregroundColor(.primary)
         }
     }
 
@@ -142,7 +148,7 @@ struct SoulView: View {
         } label: {
             if viewModel.isSaving {
                 ProgressView()
-                    .tint(MeowTheme.accent)
+                    .tint(.primary)
             } else {
                 Image(systemName: "checkmark")
                     .foregroundColor(MeowTheme.green)
