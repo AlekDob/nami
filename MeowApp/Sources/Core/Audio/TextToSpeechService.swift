@@ -10,6 +10,11 @@ final class TextToSpeechService: NSObject {
     var isLoading = false
     var error: String?
 
+    /// Audio level for Mio reactivity (0.0 - 1.0)
+    var audioLevel: CGFloat {
+        elevenLabs.audioLevel
+    }
+
     // ElevenLabs service (primary)
     private let elevenLabs = ElevenLabsTTSService()
     // Apple TTS (fallback)
@@ -26,18 +31,43 @@ final class TextToSpeechService: NSObject {
         let apiKey = SharedConfig.elevenLabsAPIKey
 
         if useElevenLabs && !apiKey.isEmpty {
+            // Set loading state immediately
+            self.isLoading = true
+            self.speakingMessageID = messageID
+
             // Use ElevenLabs
             Task {
                 await elevenLabs.speak(text, messageID: messageID, apiKey: apiKey)
-                // Sync state
+                // Sync final state
                 self.isSpeaking = elevenLabs.isSpeaking
                 self.speakingMessageID = elevenLabs.speakingMessageID
                 self.isLoading = elevenLabs.isLoading
                 self.error = elevenLabs.error
+
+                // Start observing for when playback finishes
+                if self.isSpeaking {
+                    self.observePlaybackCompletion()
+                }
             }
         } else {
             // Fallback to Apple TTS
             speakWithApple(text, messageID: messageID)
+        }
+    }
+
+    /// Poll to detect when ElevenLabs playback completes
+    private func observePlaybackCompletion() {
+        Task {
+            while elevenLabs.isSpeaking {
+                try? await Task.sleep(for: .milliseconds(200))
+                // Sync state periodically
+                self.isSpeaking = elevenLabs.isSpeaking
+                self.isLoading = elevenLabs.isLoading
+            }
+            // Playback finished - reset state
+            self.isSpeaking = false
+            self.speakingMessageID = nil
+            self.isLoading = false
         }
     }
 

@@ -207,11 +207,14 @@ final class ChatViewModel {
         activeTools = []
         errorMessage = nil
 
+        // Filter out non-model messages (creation, notification) before sending
+        let modelMessages = messages.filter { $0.role == .user || $0.role == .assistant }
+
         if wsManager.isConnected {
-            wsManager.sendChat(messages: messages)
+            wsManager.sendChat(messages: modelMessages)
         } else {
             wsManager.connect()
-            sendViaREST()
+            sendViaREST(messages: modelMessages)
         }
     }
 
@@ -261,10 +264,10 @@ final class ChatViewModel {
 
     // MARK: - Network
 
-    private func sendViaREST() {
+    private func sendViaREST(messages messagesToSend: [ChatMessage]) {
         Task { @MainActor in
             do {
-                let response = try await apiClient.sendChat(messages: messages)
+                let response = try await apiClient.sendChat(messages: messagesToSend)
                 handleResponse(text: response.text, stats: response.stats, toolsUsed: response.toolsUsed)
             } catch {
                 handleError(error)

@@ -26,3 +26,19 @@ Thumbs.db
 
 # Quack agent config (local only)
 .quack/
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+.build/
+Build/
+DerivedData/
+*.ipa
+*.dSYM
+
+# Swift Package Manager
+.swiftpm/
+package.resolved
+
+# macOS
+.DS_Store

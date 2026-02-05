@@ -3,12 +3,15 @@ import SwiftUI
 struct SoulView: View {
     @Bindable var viewModel: SoulViewModel
     var onMenuTap: (() -> Void)?
+    @Binding var namiProps: NamiProps
+    let namiLevel: Int
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: MeowTheme.spacingMD) {
+                    namiEditorSection
                     headerSection
                     if viewModel.isLoading { loadingSection }
                     else { contentSection }
@@ -30,11 +33,130 @@ struct SoulView: View {
         }
     }
 
+    // MARK: - Nami Editor
+
+    private var namiEditorSection: some View {
+        TerminalBox(title: "nami.config") {
+            VStack(spacing: MeowTheme.spacingMD) {
+                // Preview
+                NamiEntityView(
+                    props: namiProps,
+                    state: .idle,
+                    level: namiLevel,
+                    size: 120
+                )
+
+                // Name
+                HStack {
+                    Text("Name")
+                        .font(.subheadline)
+                        .foregroundColor(secondaryColor)
+                    Spacer()
+                    TextField("Name", text: $namiProps.name)
+                        .font(.system(.body, design: .monospaced))
+                        .textFieldStyle(.plain)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 120)
+                        .foregroundColor(primaryColor)
+                }
+
+                // Personality
+                HStack {
+                    Text("Personality")
+                        .font(.subheadline)
+                        .foregroundColor(secondaryColor)
+                    Spacer()
+                    Picker("", selection: $namiProps.personality) {
+                        ForEach(NamiProps.Personality.allCases, id: \.self) { p in
+                            Text(p.rawValue.capitalized).tag(p)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .tint(primaryColor)
+                }
+
+                // Form Style
+                HStack {
+                    Text("Form")
+                        .font(.subheadline)
+                        .foregroundColor(secondaryColor)
+                    Spacer()
+                    Picker("", selection: $namiProps.formStyle) {
+                        ForEach(NamiProps.FormStyle.allCases, id: \.self) { s in
+                            Text(s.displayName).tag(s)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .tint(primaryColor)
+                }
+
+                // Colors
+                HStack(spacing: MeowTheme.spacingMD) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Primary")
+                            .font(.caption)
+                            .foregroundColor(secondaryColor)
+                        ColorPicker("", selection: Binding(
+                            get: { namiProps.dominantSwiftUIColor },
+                            set: { namiProps.dominantColor = $0.toHex() }
+                        ))
+                        .labelsHidden()
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Secondary")
+                            .font(.caption)
+                            .foregroundColor(secondaryColor)
+                        ColorPicker("", selection: Binding(
+                            get: { namiProps.secondarySwiftUIColor },
+                            set: { namiProps.secondaryColor = $0.toHex() }
+                        ))
+                        .labelsHidden()
+                    }
+                    Spacer()
+                }
+
+                // Level Progress
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Level \(namiLevel)")
+                            .font(.subheadline.bold())
+                            .foregroundColor(primaryColor)
+                        Spacer()
+                        Text(levelName)
+                            .font(.caption)
+                            .foregroundColor(MeowTheme.cyan)
+                    }
+                    ProgressView(value: levelProgress)
+                        .tint(MeowTheme.cyan)
+                }
+            }
+        }
+        .onChange(of: namiProps) { _, newValue in
+            newValue.save()
+        }
+    }
+
+    private var levelName: String {
+        switch namiLevel {
+        case 1...2: return "Ripple"
+        case 3...4: return "Surge"
+        case 5...6: return "Current"
+        case 7...8: return "Tsunami"
+        case 9...10: return "Ocean"
+        default: return "Ripple"
+        }
+    }
+
+    private var levelProgress: Double {
+        let xpForCurrent = Int(pow(Double(namiLevel), 2.5) * 100)
+        let xpForNext = Int(pow(Double(namiLevel + 1), 2.5) * 100)
+        return Double(xpForCurrent) / Double(xpForNext)
+    }
+
     // MARK: - Header
 
     private var headerSection: some View {
         VStack(spacing: MeowTheme.spacingSM) {
-            ASCIICatView(mood: .happy, size: .large)
             Text("Personality & Behavior")
                 .font(.headline)
                 .foregroundColor(secondaryColor)

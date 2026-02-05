@@ -6,16 +6,33 @@ struct MessageRow: View {
     let toolsUsed: [String]?
     let isLatest: Bool
     let tts: TextToSpeechService?
+    var onCreationTap: ((CreationInfo) -> Void)?
+
+    // Typewriter support
+    let isTyping: Bool
+    let typewriterText: String
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var appeared = false
 
-    init(message: ChatMessage, stats: ChatStats? = nil, toolsUsed: [String]? = nil, isLatest: Bool = false, tts: TextToSpeechService? = nil) {
+    init(
+        message: ChatMessage,
+        stats: ChatStats? = nil,
+        toolsUsed: [String]? = nil,
+        isLatest: Bool = false,
+        tts: TextToSpeechService? = nil,
+        isTyping: Bool = false,
+        typewriterText: String = "",
+        onCreationTap: ((CreationInfo) -> Void)? = nil
+    ) {
         self.message = message
         self.stats = stats
         self.toolsUsed = toolsUsed
         self.isLatest = isLatest
         self.tts = tts
+        self.isTyping = isTyping
+        self.typewriterText = typewriterText
+        self.onCreationTap = onCreationTap
     }
 
     var body: some View {
@@ -24,6 +41,7 @@ struct MessageRow: View {
             case .user:     userRow
             case .assistant: assistantRow
             case .system:   systemRow
+            case .creation: creationRow
             }
         }
         .opacity(appeared ? 1 : 0)
@@ -51,7 +69,9 @@ struct MessageRow: View {
                 stats: isLatest ? stats : nil,
                 toolsUsed: isLatest ? toolsUsed : nil,
                 messageID: message.id,
-                tts: tts
+                tts: tts,
+                isTyping: isTyping,
+                typewriterText: typewriterText
             )
             Spacer(minLength: 60)
         }
@@ -65,5 +85,15 @@ struct MessageRow: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, MeowTheme.spacingSM)
             .padding(.horizontal, MeowTheme.spacingMD + 4)
+    }
+
+    @ViewBuilder
+    private var creationRow: some View {
+        if let info = message.creationInfo {
+            CreationBanner(info: info) {
+                onCreationTap?(info)
+            }
+            .padding(.horizontal, MeowTheme.spacingMD + 4)
+        }
     }
 }

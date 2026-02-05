@@ -5,7 +5,7 @@ actor MeowAPIClient {
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
-    private var baseURL: String
+    private(set) var baseURL: String
     private var apiKey: String
 
     init() {
@@ -112,6 +112,28 @@ actor MeowAPIClient {
 
     func checkHealth() async throws -> HealthResponse {
         try await getNoAuth("/api/health")
+    }
+
+    // MARK: - Creations (OS)
+
+    func fetchCreations() async throws -> CreationsResponse {
+        try await get("/api/creations")
+    }
+
+    func fetchCreationPreview(id: String) async throws -> String {
+        let request = try buildRequest(path: "/api/creations/\(id)/preview", method: "GET")
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        guard (200...299).contains(http.statusCode) else {
+            throw APIError.httpError(status: http.statusCode, body: "Preview not available")
+        }
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    func deleteCreation(id: String) async throws -> DeleteCreationResponse {
+        try await delete("/api/creations/\(id)")
     }
 
     // MARK: - Private HTTP Methods
