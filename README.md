@@ -66,6 +66,12 @@ Native SwiftUI apps for iOS/iPadOS/macOS are available in a **separate private r
 npx create-namios@latest
 ```
 
+Or directly from GitHub:
+
+```bash
+npx github:AlekDob/create-namios
+```
+
 This will:
 1. Download NamiOS
 2. Install dependencies
