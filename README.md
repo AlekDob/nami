@@ -14,7 +14,6 @@
   <img src="https://img.shields.io/badge/AI%20SDK-v6-purple" alt="AI SDK">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/TypeScript-strict-blue" alt="TypeScript">
-  <img src="https://img.shields.io/badge/SwiftUI-iOS%20%7C%20macOS-orange" alt="SwiftUI">
 </p>
 
 ---
@@ -41,28 +40,25 @@ No cloud subscriptions. Your data stays on your server.
 - **Soul System** — Tamagotchi personality that evolves with you (SOUL.md)
 - **Voice Interaction** — ElevenLabs TTS + Apple Speech Recognition
 - **Scheduled Tasks** — Cron jobs that run the full agent autonomously
-- **Native Apps** — SwiftUI apps for iOS/iPadOS/macOS with fluid Nami entity
 - **Smart Model Selection** — Auto-detects API keys, picks best model per tier
 - **Multi-Provider** — OpenRouter, OpenAI, Anthropic, Moonshot, Together AI
 
-## Native Apps
+## Native Apps 📱
 
-NamiOS includes native SwiftUI apps for Apple platforms:
+Native SwiftUI apps for iOS/iPadOS/macOS are available in a **separate private repository** for collaborators and clients.
 
-| Platform | Features |
-|----------|----------|
-| **iOS/iPadOS** | Chat, Voice, Memory browser, OS creations, Nami entity |
-| **macOS** | Split view, keyboard shortcuts, system integration |
+**Features include:**
+- Chat with real-time WebSocket
+- OS section for viewing Nami's creations
+- Memory browser with offline cache
+- Jobs scheduler CRUD
+- Soul/personality editor
+- Nami entity with fluid animations
+- Voice: ElevenLabs TTS + Apple Speech Recognition
 
-The Nami entity is a fluid wave shape that:
-- Reacts to your voice amplitude
-- Responds to touch/gestures
-- Shows emotions (happy, thinking, speaking)
-- Evolves through XP levels (Ripple → Ocean)
+> **Interested in the native app?** [Contact us](mailto:alek@alekdob.com) for access or check out our [services](#services).
 
 ## Quick Start
-
-### Server (Backend)
 
 ```bash
 # Clone
@@ -79,10 +75,6 @@ cp .env.example .env
 # Run
 bun run dev
 ```
-
-### iOS/macOS App
-
-Open `MeowApp/NamiOS.xcodeproj` in Xcode and run on your device.
 
 ## Configuration
 
@@ -108,7 +100,7 @@ ELEVENLABS_API_KEY=...             # ElevenLabs TTS
 ## Architecture
 
 ```
-Server (Hetzner)
+Server
 ├── src/
 │   ├── agent/          # Core agent loop, system prompt
 │   ├── api/            # REST + WebSocket server
@@ -124,17 +116,6 @@ Server (Hetzner)
     ├── soul/           # SOUL.md personality
     ├── creations/      # Generated web apps
     └── jobs/           # Scheduler state
-
-iOS/macOS App (SwiftUI)
-├── Sources/
-│   ├── Core/           # API client, WebSocket, Auth
-│   ├── Features/
-│   │   ├── Chat/       # Conversation UI
-│   │   ├── Nami/       # Entity views, props, stats
-│   │   ├── Memory/     # Browser, detail views
-│   │   ├── Soul/       # Personality editor
-│   │   └── OS/         # Creations gallery
-│   └── Shared/         # Theme, components
 ```
 
 ## Tech Stack
@@ -142,13 +123,31 @@ iOS/macOS App (SwiftUI)
 | Layer | Technology |
 |-------|-----------|
 | Runtime | Bun / Node.js |
-| Language | TypeScript (strict), Swift |
+| Language | TypeScript (strict) |
 | AI SDK | Vercel AI SDK v6 |
 | Providers | OpenRouter, OpenAI, Anthropic, Moonshot, Together |
 | Search | SQLite FTS5 + sqlite-vec |
-| Voice | ElevenLabs TTS, Apple Speech |
-| iOS/macOS | SwiftUI, SwiftData, @Observable |
+| Voice | ElevenLabs TTS |
+
+## Services
+
+Need help setting up NamiOS or want custom features? We offer:
+
+| Service | Description |
+|---------|-------------|
+| **Setup Assistance** | We deploy and configure NamiOS on your server |
+| **Custom Features** | Integrations, new tools, custom UI |
+| **Managed Hosting** | We handle everything, you just use it |
+| **Training** | Learn to customize and extend NamiOS |
+
+📧 **Contact:** [alek@alekdob.com](mailto:alek@alekdob.com)
 
 ## License
 
-MIT
+MIT — The backend is fully open source. Use it, modify it, contribute!
+
+---
+
+<p align="center">
+  <i>Made with 🌊 in Puglia, Italy</i>
+</p>
