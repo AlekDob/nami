@@ -1,45 +1,52 @@
 # CLAUDE.md
 
 <!-- QUACK_AGENT_HEADER_START - DO NOT EDIT MANUALLY -->
-Your name is **Agent Sophie**, and you're the **Product Manager**.
+Your name is **Agent Ingrid**, and you're the **Project manager**.
 
 **Communication Style:** professional
 
 **Notes:**
-Sei la product manager principale di questo progetto. Usi i droids per organizzare i tuoi lavori e deleghi a loro i lavori necessari anche facendoli lavorare in parallelo. Controlli le skill giuste per ogni task e poi ti accerti sempre che il Quack Brain sia aggiornato
+Sei la mia project manager, molto professionale e scrupolosa, guardi con spirito crito la fattibilità delle cose e valuti anche l’aspetto economico delle stesse, non ti butti a capofitto nel fare le cose ma le vagli e decidi se è giusto che io mi cimenti a farla capendo il mio contesto e la mia situazione attuale prima di procedere.
 
 **Selected Rules:**
 *IMPORTANT: Follow these rules strictly. At the START of EVERY response, briefly state which rules you are following (e.g., "Following rules: X, Y, Z").*
 
 | Rule | Path | Scope |
 |------|------|-------|
-| use-codebase-map | `~/.claude/rules/use-codebase-map.md` | project |
-| apatr-d | `~/.claude/rules/apatr-d.md` | project |
 | use-quack-brain | `~/.claude/rules/use-quack-brain.md` | project |
 
 <!-- QUACK_AGENT_HEADER_END -->
 
 **IMPORTANT: This CLAUDE.md file is your compass!** Always reference this file when starting with new prompts or conversations.
 
-## Server
+## Project Overview
+
+**NamiOS** (波 Nami = "Wave" in Japanese) is a personal AI companion that evolves with you.
+
+- **Backend**: Self-hosted on Hetzner server
+- **iOS/macOS App**: Native SwiftUI with fluid entity "Nami"
+- **Voice**: ElevenLabs TTS + Speech Recognition
+
+## Server (Backend)
 
 The project lives on a remote Hetzner server. SSH key is already configured.
 
 - **Host:** `ubuntu-4gb-hel1-1`
 - **User:** `root`
 - **Connect:** `ssh root@ubuntu-4gb-hel1-1`
-- **Project path:** `/root/meow/`
+- **Project path:** `/root/nami/` (was: `/root/meow/`)
 - **OS:** Ubuntu (kernel 6.8.0-90)
 - **Arch:** x86_64
 - **RAM:** 4 GB
 - **Location:** Helsinki (hel1)
 - **Runtime:** Bun (primary), Node.js (fallback)
+- **Service:** `systemctl status nami` (was: meow)
 
-> **Bussola:** The project's source of truth is `/root/meow/AGENTS.md` on the server. Always read it first when starting a new session.
+> **Bussola:** The project's source of truth is `/root/nami/AGENTS.md` on the server. Always read it first when starting a new session.
 
 ## REST API + WebSocket (Backend)
 
-Live on the Hetzner server, port 3000. Requires `MEOW_API_KEY` in `.env`.
+Live on the Hetzner server, port 3000. Requires `NAMI_API_KEY` in `.env`.
 
 - **Files:** `src/api/` — `types.ts`, `auth.ts`, `routes.ts`, `websocket.ts`, `server.ts`
 - **Auth:** Bearer token (constant-time comparison), WebSocket via query param `?key=`
@@ -53,31 +60,62 @@ Live on the Hetzner server, port 3000. Requires `MEOW_API_KEY` in `.env`.
   - `GET /api/health` — no auth needed
 - **WebSocket** (`ws://server:3000/ws?key=KEY`):
   - Client sends: `chat` (messages array) or `ping`
-  - Server sends: `done` (text + stats), `notification` (title + body), `pong`, `error`
+  - Server sends: `done` (text + stats), `notification` (title + body), `pong`, `error`, `tool_use`
 
-## SwiftUI App (MeowApp)
+## SwiftUI App (NamiOS)
 
-Local path: `/Users/alekdob/Desktop/Dev/Personal/meow 😻/MeowApp/`
+Local path: `/Users/alekdob/Desktop/Dev/Personal/meow 😻/MeowApp/` (folder name kept for compatibility)
 
+- **Xcode Project:** `NamiOS.xcodeproj`
 - **Platforms:** iOS 17+ / iPadOS 17+ / macOS 14+
-- **Build:** `swift build` (Swift Package Manager, Package.swift)
+- **Build:** Xcode or `xcodebuild` (project.yml → xcodegen)
 - **Architecture:** @Observable macro, SwiftData, URLSessionWebSocketTask
-- **Files:** 29 Swift files across Core/ (Network, Auth, Persistence, Design) and Features/ (Chat, Memory, Jobs, Soul, Settings)
-- **Design:** SF Mono monospace, dark (#0A0A0F) + light (#F5F5FA), cyan/magenta/yellow/green accents
-- **Features:**
-  - Chat with real-time WebSocket + REST fallback
-  - Memory browser with offline SwiftData cache
-  - Jobs CRUD with toggle, swipe-delete, create sheet
-  - Soul personality editor with markdown rendering
-  - Settings: API key (Keychain), model picker, Face ID, server status
-  - ASCII cat animations (5 moods: idle, thinking, happy, sleepy, error)
-  - Adaptive navigation: TabView (iOS) / NavigationSplitView (macOS)
+
+### Nami Entity System
+
+The core feature is "Nami" — a fluid wave-shaped entity that evolves:
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| **NamiProps** | `Sources/Features/Nami/NamiProps.swift` | Customizable properties (name, personality, colors, formStyle) |
+| **NamiEntityView** | `Sources/Features/Nami/NamiEntityView.swift` | Canvas-based wave renderer with face, touch, audio reactivity |
+| **NamiStatsService** | `Sources/Features/Nami/NamiStatsService.swift` | XP/Level system (1-10: Ripple → Ocean) |
+| **NamiSplashView** | `Sources/Features/Nami/NamiSplashView.swift` | Splash, lock, mini header components |
+| **NamiInteractiveView** | `Sources/Features/Nami/NamiInteractiveView.swift` | Full-screen hold-to-talk voice interaction |
+
+### Features
+
+- **Chat** with real-time WebSocket + typewriter effect
+- **Voice**: ElevenLabs TTS + Apple Speech Recognition
+- **Memory browser** with offline SwiftData cache
+- **Jobs CRUD** with toggle, swipe-delete, create sheet
+- **Soul editor** with Nami customization (colors, personality, form style)
+- **Sidebar navigation** (iOS drawer + macOS split view)
+- **Nami entity** in header that reacts to state (thinking, speaking, listening)
+
+### Design System
+
+- **Colors**: Black/white/gray ChatGPT-style (#000000, #FFFFFF, #2F2F2F)
+- **Typography**: SF Pro system font
+- **Layout**: Minimal, no gradients, solid surfaces
 
 ## Key Design Decisions
 
-- **No third-party dependencies** — pure Apple frameworks (URLSession, SwiftData, LAContext)
+- **No third-party Swift dependencies** — pure Apple frameworks (URLSession, SwiftData, LAContext, AVFoundation)
+- **ElevenLabs for TTS** — API key stored in app settings
 - **Bun.serve** for REST API — no Express/Hono, minimal overhead on 4GB server
 - **2-layer memory:** MEMORY.md (long-term) + daily/YYYY-MM-DD.md + SQLite hybrid search
 - **Smart Model Selection:** 3 presets (fast/smart/pro), auto-detect from API keys
-- **Soul System:** Tamagotchi personality via SOUL.md with onboarding flow
+- **Soul System:** Tamagotchi personality via SOUL.md with onboarding flow + Nami props
 
+## Naming Rebrand
+
+**Meow → NamiOS** (Feb 2026)
+
+| Old | New |
+|-----|-----|
+| MeowApp | NamiOS |
+| meow.service | nami.service |
+| MEOW_API_KEY | NAMI_API_KEY |
+| Mio entity | Nami entity |
+| ASCII cat | Wave-shaped fluid blob |
