@@ -108,13 +108,10 @@ struct ShareView: View {
     private var sendButton: some View {
         Button {
             viewModel.openInApp(extensionContext: extensionContext)
-            // Small delay to allow URL to open before dismissing
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                onDismiss()
-            }
+            onDismiss()
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: "arrow.up.forward.app")
+                Image(systemName: "arrow.up.forward.app.fill")
                 Text("Open in Meow")
             }
             .foregroundStyle(Color(hex: 0x10A37F))

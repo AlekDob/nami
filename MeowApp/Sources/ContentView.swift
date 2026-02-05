@@ -8,11 +8,15 @@ struct ContentView: View {
 
     @State private var selectedTab: AppTab = .chat
     @State private var showSidebar = false
+    @State private var namiProps = NamiProps.load()
+    @State private var namiStats = NamiStatsService()
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.modelContext) private var modelContext
 
     enum AppTab: String, CaseIterable {
         case chat = "Chat"
+        case nami = "Nami"
+        case os = "OS"
         case memory = "Memory"
         case jobs = "Jobs"
         case soul = "Soul"
@@ -21,6 +25,8 @@ struct ContentView: View {
         var icon: String {
             switch self {
             case .chat: return "bubble.left.and.bubble.right"
+            case .nami: return "waveform.circle"
+            case .os: return "sparkles"
             case .memory: return "brain"
             case .jobs: return "clock.arrow.circlepath"
             case .soul: return "heart.text.square"
@@ -36,6 +42,7 @@ struct ContentView: View {
     @State private var jobsVM: JobsViewModel?
     @State private var soulVM: SoulViewModel?
     @State private var settingsVM: SettingsViewModel?
+    @State private var osVM: OSViewModel?
 
     var body: some View {
         Group {
@@ -87,7 +94,7 @@ struct ContentView: View {
     private var sidebarDrawer: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
-            Text("Meow")
+            Text("NamiOS")
                 .font(.title2.bold())
                 .foregroundColor(primaryColor)
                 .padding(.horizontal, 20)
@@ -160,10 +167,12 @@ struct ContentView: View {
             List(AppTab.allCases, id: \.self, selection: $selectedTab) { tab in
                 Label(tab.rawValue, systemImage: tab.icon)
             }
-            .navigationTitle("meow")
+            .listStyle(.sidebar)
+            .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 250)
         } detail: {
             tabContent(for: selectedTab)
         }
+        .navigationSplitViewStyle(.balanced)
     }
     #endif
 
@@ -175,6 +184,25 @@ struct ContentView: View {
         case .chat:
             if let vm = chatVM {
                 ChatView(
+                    viewModel: vm,
+                    onMenuTap: { openSidebarIfAvailable() },
+                    onCreationTap: { info in navigateToCreation(info) },
+                    namiProps: namiProps,
+                    namiLevel: namiStats.level
+                )
+            } else {
+                loadingPlaceholder
+            }
+        case .nami:
+            NamiInteractiveView(
+                apiClient: apiClient,
+                namiProps: $namiProps,
+                namiLevel: namiStats.level,
+                onMenuTap: { openSidebarIfAvailable() }
+            )
+        case .os:
+            if let vm = osVM {
+                OSView(
                     viewModel: vm,
                     onMenuTap: { openSidebarIfAvailable() }
                 )
@@ -203,7 +231,9 @@ struct ContentView: View {
             if let vm = soulVM {
                 SoulView(
                     viewModel: vm,
-                    onMenuTap: { openSidebarIfAvailable() }
+                    onMenuTap: { openSidebarIfAvailable() },
+                    namiProps: $namiProps,
+                    namiLevel: namiStats.level
                 )
             } else {
                 loadingPlaceholder
@@ -225,6 +255,21 @@ struct ContentView: View {
         #if os(iOS)
         openSidebar()
         #endif
+    }
+
+    private func navigateToCreation(_ info: CreationInfo) {
+        selectedTab = .os
+        // Reload creations and open preview for the tapped item
+        if let vm = osVM {
+            vm.loadCreations()
+            // Small delay to let creations load, then open preview
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(500))
+                if let creation = vm.creations.first(where: { $0.id == info.id }) {
+                    vm.loadPreview(for: creation)
+                }
+            }
+        }
     }
 
     private var loadingPlaceholder: some View {
@@ -257,6 +302,7 @@ struct ContentView: View {
             apiClient: apiClient,
             wsManager: wsManager
         )
+        osVM = OSViewModel(api: apiClient, baseURL: authManager.serverURL)
     }
 
     // MARK: - Colors

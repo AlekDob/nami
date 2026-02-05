@@ -35,15 +35,15 @@
 		<true/>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>Meow needs camera access to take photos for chat</string>
+	<string>Nami needs camera access to take photos for chat</string>
 	<key>NSFaceIDUsageDescription</key>
-	<string>Unlock MeowApp with Face ID</string>
+	<string>Unlock NamiOS with Face ID</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Meow needs the microphone for voice input</string>
+	<string>Nami needs the microphone for voice input</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Meow needs access to your photos to share images in chat</string>
+	<string>Nami needs access to your photos to share images in chat</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Meow uses speech recognition for voice input</string>
+	<string>Nami uses speech recognition for voice input</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

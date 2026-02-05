@@ -94,18 +94,21 @@ struct ChatMessage: Codable, Identifiable, Equatable {
     let role: MessageRole
     let content: MessageContent
     let timestamp: Date
+    let creationInfo: CreationInfo?
 
     init(role: MessageRole, content: String) {
         self.id = UUID()
         self.role = role
         self.content = .text(content)
         self.timestamp = Date()
+        self.creationInfo = nil
     }
 
     init(role: MessageRole, text: String, images: [String]) {
         self.id = UUID()
         self.role = role
         self.timestamp = Date()
+        self.creationInfo = nil
         if images.isEmpty {
             self.content = .text(text)
         } else {
@@ -114,6 +117,14 @@ struct ChatMessage: Codable, Identifiable, Equatable {
             parts.append(contentsOf: images.map { .image($0) })
             self.content = .parts(parts)
         }
+    }
+
+    init(creation: CreationInfo) {
+        self.id = UUID()
+        self.role = .creation
+        self.content = .text(creation.name)
+        self.timestamp = Date()
+        self.creationInfo = creation
     }
 
     enum CodingKeys: String, CodingKey {
@@ -126,6 +137,7 @@ struct ChatMessage: Codable, Identifiable, Equatable {
         self.role = try container.decode(MessageRole.self, forKey: .role)
         self.content = try container.decode(MessageContent.self, forKey: .content)
         self.timestamp = Date()
+        self.creationInfo = nil
     }
 
     func encode(to encoder: Encoder) throws {
@@ -139,6 +151,22 @@ enum MessageRole: String, Codable {
     case user
     case assistant
     case system
+    case creation  // Special: shows interactive creation banner
+}
+
+struct CreationInfo: Codable, Equatable {
+    let id: String
+    let name: String
+    let type: String
+
+    var icon: String {
+        switch type {
+        case "app": return "app.badge.checkmark"
+        case "document": return "doc.text"
+        case "script": return "chevron.left.forwardslash.chevron.right"
+        default: return "sparkles"
+        }
+    }
 }
 
 struct ChatRequest: Codable {
@@ -279,6 +307,66 @@ struct HealthResponse: Codable {
     let ok: Bool
 }
 
+// MARK: - Creations (OS)
+
+struct Creation: Identifiable, Codable {
+    let id: String
+    let type: CreationType
+    let name: String
+    let path: String
+    let entryPoint: String?
+    let createdAt: Date
+    let updatedAt: Date
+
+    enum CreationType: String, Codable {
+        case app
+        case document
+        case script
+    }
+
+    var icon: String {
+        switch type {
+        case .app: return "app.badge.checkmark"
+        case .document: return "doc.text"
+        case .script: return "chevron.left.forwardslash.chevron.right"
+        }
+    }
+
+    var relativeDate: String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: updatedAt, relativeTo: Date())
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, type, name, path, entryPoint, createdAt, updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        type = try container.decode(CreationType.self, forKey: .type)
+        name = try container.decode(String.self, forKey: .name)
+        path = try container.decode(String.self, forKey: .path)
+        entryPoint = try container.decodeIfPresent(String.self, forKey: .entryPoint)
+
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let createdStr = try container.decode(String.self, forKey: .createdAt)
+        let updatedStr = try container.decode(String.self, forKey: .updatedAt)
+        createdAt = dateFormatter.date(from: createdStr) ?? Date()
+        updatedAt = dateFormatter.date(from: updatedStr) ?? Date()
+    }
+}
+
+struct CreationsResponse: Codable {
+    let creations: [Creation]
+}
+
+struct DeleteCreationResponse: Codable {
+    let success: Bool
+}
+
 // MARK: - WebSocket
 
 enum WSOutgoing: Codable {
@@ -317,11 +405,12 @@ enum WSIncoming: Codable {
     case done(text: String, stats: ChatStats?)
     case toolUse(tool: String)
     case notification(title: String, body: String)
+    case creation(id: String, name: String, type: String)
     case pong
     case error(error: String)
 
     enum CodingKeys: String, CodingKey {
-        case type, text, stats, title, body, error, tool
+        case type, text, stats, title, body, error, tool, id, name, creationType
     }
 
     init(from decoder: Decoder) throws {
@@ -339,6 +428,11 @@ enum WSIncoming: Codable {
             let title = try container.decode(String.self, forKey: .title)
             let body = try container.decode(String.self, forKey: .body)
             self = .notification(title: title, body: body)
+        case "creation":
+            let id = try container.decode(String.self, forKey: .id)
+            let name = try container.decode(String.self, forKey: .name)
+            let creationType = try container.decode(String.self, forKey: .creationType)
+            self = .creation(id: id, name: name, type: creationType)
         case "pong":
             self = .pong
         case "error":
@@ -363,6 +457,11 @@ enum WSIncoming: Codable {
             try container.encode("notification", forKey: .type)
             try container.encode(title, forKey: .title)
             try container.encode(body, forKey: .body)
+        case .creation(let id, let name, let creationType):
+            try container.encode("creation", forKey: .type)
+            try container.encode(id, forKey: .id)
+            try container.encode(name, forKey: .name)
+            try container.encode(creationType, forKey: .creationType)
         case .pong:
             try container.encode("pong", forKey: .type)
         case .error(let error):

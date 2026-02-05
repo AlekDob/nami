@@ -6,6 +6,7 @@ import SwiftUI
 struct MarkdownText: View {
     let content: String
     var textColor: Color = .primary
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: MeowTheme.spacingSM) {
@@ -163,13 +164,7 @@ extension MarkdownText {
             }
 
         case .codeBlock(let code):
-            Text(code)
-                .font(MeowTheme.mono)
-                .foregroundColor(MeowTheme.accent)
-                .padding(MeowTheme.spacingSM)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(textColor.opacity(0.06))
-                .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerSM))
+            CodeBlockView(code: code, colorScheme: colorScheme)
 
         case .horizontalRule:
             Rectangle()
@@ -239,5 +234,34 @@ extension MarkdownText {
         }
 
         return result
+    }
+}
+
+// MARK: - Code Block View (with proper light/dark mode support)
+
+private struct CodeBlockView: View {
+    let code: String
+    let colorScheme: ColorScheme
+
+    private var backgroundColor: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.1)
+            : Color(red: 0.15, green: 0.15, blue: 0.15)
+    }
+
+    private var textColor: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.9)
+            : Color.white.opacity(0.9)
+    }
+
+    var body: some View {
+        Text(code)
+            .font(MeowTheme.mono)
+            .foregroundColor(textColor)
+            .padding(MeowTheme.spacingSM)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(backgroundColor)
+            .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerSM))
     }
 }

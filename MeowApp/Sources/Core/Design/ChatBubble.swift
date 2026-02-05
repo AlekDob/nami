@@ -8,15 +8,30 @@ struct ChatBubble: View {
     let messageID: UUID?
     let tts: TextToSpeechService?
 
+    // Typewriter support
+    let isTyping: Bool
+    let typewriterText: String
+
     @Environment(\.colorScheme) private var colorScheme
 
-    init(content: MessageContent, isUser: Bool, stats: ChatStats? = nil, toolsUsed: [String]? = nil, messageID: UUID? = nil, tts: TextToSpeechService? = nil) {
+    init(
+        content: MessageContent,
+        isUser: Bool,
+        stats: ChatStats? = nil,
+        toolsUsed: [String]? = nil,
+        messageID: UUID? = nil,
+        tts: TextToSpeechService? = nil,
+        isTyping: Bool = false,
+        typewriterText: String = ""
+    ) {
         self.content = content
         self.isUser = isUser
         self.stats = stats
         self.toolsUsed = toolsUsed
         self.messageID = messageID
         self.tts = tts
+        self.isTyping = isTyping
+        self.typewriterText = typewriterText
     }
 
     var body: some View {
@@ -40,8 +55,9 @@ struct ChatBubble: View {
                 .background(surfaceColor)
                 .clipShape(RoundedRectangle(cornerRadius: MeowTheme.cornerLG, style: .continuous))
         } else {
-            // Assistant: no background, just text
-            MarkdownText(content: content.textContent, textColor: primaryColor)
+            // Assistant: no background, just text (with typewriter effect if active)
+            let displayText = isTyping ? typewriterText : content.textContent
+            MarkdownText(content: displayText, textColor: primaryColor)
         }
     }
 
@@ -51,9 +67,16 @@ struct ChatBubble: View {
     private var actionRow: some View {
         HStack(spacing: 14) {
             if let tts, let messageID {
-                actionIcon(tts.speakingMessageID == messageID && tts.isSpeaking
-                           ? "stop.fill" : "speaker.wave.2",
-                           action: { tts.toggleSpeak(content.textContent, messageID: messageID) })
+                // Show loading spinner, stop button, or play button
+                if tts.speakingMessageID == messageID && tts.isLoading {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                        .frame(width: 16, height: 16)
+                } else if tts.speakingMessageID == messageID && tts.isSpeaking {
+                    actionIcon("stop.fill", action: { tts.toggleSpeak(content.textContent, messageID: messageID) })
+                } else {
+                    actionIcon("speaker.wave.2", action: { tts.toggleSpeak(content.textContent, messageID: messageID) })
+                }
             }
             if let tools = toolsUsed, !tools.isEmpty {
                 ForEach(tools, id: \.self) { tool in

@@ -9,9 +9,11 @@ final class ElevenLabsTTSService: NSObject {
     var speakingMessageID: UUID?
     var isLoading = false
     var error: String?
+    var audioLevel: CGFloat = 0.0  // For Mio reactivity (0.0 - 1.0)
 
     private var audioPlayer: AVAudioPlayer?
     private var currentTask: Task<Void, Never>?
+    private var meteringTimer: Timer?
 
     // ElevenLabs config
     private let defaultVoiceID = "EXAVITQu4vr4xnSDxMaL" // "Sarah" - natural Italian-friendly voice
@@ -19,6 +21,12 @@ final class ElevenLabsTTSService: NSObject {
 
     /// Speak text using ElevenLabs TTS
     func speak(_ text: String, messageID: UUID? = nil, apiKey: String) async {
+        // Prevent duplicate requests (ElevenLabs free tier allows only 2 concurrent)
+        guard !isLoading else {
+            print("[ElevenLabs] Already loading, ignoring duplicate request")
+            return
+        }
+
         stop()
 
         let clean = stripMarkdown(text)
@@ -42,11 +50,13 @@ final class ElevenLabsTTSService: NSObject {
 
                 audioPlayer = try AVAudioPlayer(data: audioData)
                 audioPlayer?.delegate = self
+                audioPlayer?.isMeteringEnabled = true
                 audioPlayer?.prepareToPlay()
 
                 isLoading = false
                 isSpeaking = true
                 audioPlayer?.play()
+                startMetering()
 
             } catch {
                 isLoading = false
@@ -63,6 +73,7 @@ final class ElevenLabsTTSService: NSObject {
     }
 
     func stop() {
+        stopMetering()
         currentTask?.cancel()
         currentTask = nil
         audioPlayer?.stop()
@@ -70,7 +81,39 @@ final class ElevenLabsTTSService: NSObject {
         isSpeaking = false
         isLoading = false
         speakingMessageID = nil
+        audioLevel = 0.0
         deactivateAudioSession()
+    }
+
+    // MARK: - Audio Metering
+
+    private func startMetering() {
+        meteringTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.updateAudioLevel()
+            }
+        }
+    }
+
+    private func stopMetering() {
+        meteringTimer?.invalidate()
+        meteringTimer = nil
+        audioLevel = 0.0
+    }
+
+    private func updateAudioLevel() {
+        guard let player = audioPlayer, player.isPlaying else {
+            audioLevel = 0.0
+            return
+        }
+        player.updateMeters()
+        let power = player.averagePower(forChannel: 0)
+        // Convert dB to linear scale (0.0 - 1.0)
+        // power is typically -160 to 0 dB
+        let minDb: Float = -60.0
+        let maxDb: Float = 0.0
+        let normalizedPower = max(0, min(1, (power - minDb) / (maxDb - minDb)))
+        audioLevel = CGFloat(normalizedPower)
     }
 
     // MARK: - API

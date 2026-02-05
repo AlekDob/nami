@@ -47,6 +47,8 @@ struct MeowApp: App {
     @State private var wsManager = WebSocketManager()
     @State private var pushManager: PushNotificationManager?
     @State private var isReady = false
+    @State private var namiProps = NamiProps.load()
+    @State private var namiStats = NamiStatsService()
     private let apiClient = MeowAPIClient()
     private let modelContainer: ModelContainer
 
@@ -86,6 +88,9 @@ struct MeowApp: App {
                 }
         }
         .modelContainer(modelContainer)
+        #if os(macOS)
+        .windowStyle(.hiddenTitleBar)
+        #endif
     }
 
     private func handleDeepLink(_ url: URL) {
@@ -122,38 +127,13 @@ struct MeowApp: App {
     }
 
     private var splashScreen: some View {
-        ZStack {
-            MeshGradientBackground()
-            VStack(spacing: MeowTheme.spacingMD) {
-                Image(systemName: "cat.fill")
-                    .font(.system(size: 48))
-                    .foregroundColor(.primary)
-                Text("meow")
-                    .font(.title2.bold())
-                    .foregroundColor(.primary)
-            }
-        }
+        NamiSplashView(props: namiProps, level: namiStats.level)
     }
 
     private var lockScreen: some View {
-        ZStack {
-            MeshGradientBackground()
-            VStack(spacing: MeowTheme.spacingLG) {
-                Image(systemName: "cat.fill")
-                    .font(.system(size: 48))
-                    .foregroundColor(.primary)
-                Text("meow")
-                    .font(.title2.bold())
-                    .foregroundColor(.primary)
-                Text("Unlock to continue")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                GlowButton("Unlock", icon: "faceid", color: MeowTheme.green) {
-                    Task { await unlock() }
-                }
-            }
+        NamiLockView(props: namiProps, level: namiStats.level) {
+            Task { await unlock() }
         }
-        .onAppear { Task { await unlock() } }
     }
 
     private func unlock() async {

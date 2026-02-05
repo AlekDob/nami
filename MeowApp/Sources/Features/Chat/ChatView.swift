@@ -4,6 +4,9 @@ import PhotosUI
 struct ChatView: View {
     @Bindable var viewModel: ChatViewModel
     var onMenuTap: (() -> Void)?
+    var onCreationTap: ((CreationInfo) -> Void)?
+    let namiProps: NamiProps
+    let namiLevel: Int
     @Environment(\.colorScheme) private var colorScheme
     @FocusState private var isInputFocused: Bool
     @State private var sendTapped = false
@@ -49,7 +52,7 @@ struct ChatView: View {
     // MARK: - Header (ChatGPT style)
 
     private var chatHeader: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 8) {
             // Hamburger menu (left)
             Button { onMenuTap?() } label: {
                 Image(systemName: "line.3.horizontal")
@@ -59,18 +62,16 @@ struct ChatView: View {
             }
             .buttonStyle(.plain)
 
-            Spacer()
-
-            // Center: "Meow" + ASCII cat
-            HStack(spacing: 8) {
-                Text("Meow")
-                    .font(.headline)
-                    .foregroundColor(primaryColor)
-                ASCIICatView(
-                    mood: viewModel.isThinking ? .thinking : .idle,
-                    size: .small
-                )
-            }
+            // Nami entity + name (left, next to menu)
+            MiniNamiView(
+                props: namiProps,
+                state: namiState,
+                level: namiLevel,
+                audioLevel: viewModel.tts.audioLevel
+            )
+            Text(namiProps.name)
+                .font(.headline)
+                .foregroundColor(primaryColor)
 
             Spacer()
 
@@ -101,12 +102,16 @@ struct ChatView: View {
                     ) { index, message in
                         let isLatest =
                             index == viewModel.messages.count - 1
+                        let isTyping = viewModel.typewriterMessageID == message.id
                         MessageRow(
                             message: message,
                             stats: viewModel.lastStats,
                             toolsUsed: viewModel.lastToolsUsed,
                             isLatest: isLatest,
-                            tts: viewModel.tts
+                            tts: viewModel.tts,
+                            isTyping: isTyping,
+                            typewriterText: isTyping ? viewModel.typewriterDisplayedText : "",
+                            onCreationTap: onCreationTap
                         )
                         .id(message.id)
                     }
@@ -116,18 +121,41 @@ struct ChatView: View {
             .onChange(of: viewModel.messages.count) {
                 scrollToBottom(proxy: proxy)
             }
+            .onChange(of: viewModel.typewriterDisplayedText) {
+                // Auto-scroll during typewriter effect
+                if viewModel.typewriterMessageID != nil {
+                    scrollToBottom(proxy: proxy)
+                }
+            }
         }
     }
 
     private var emptyState: some View {
         VStack(spacing: MeowTheme.spacingLG) {
-            ASCIICatView(mood: .idle, size: .large)
+            NamiEntityView(
+                props: namiProps,
+                state: .idle,
+                level: namiLevel,
+                size: 150
+            )
             Text("What can I help with?")
                 .font(.title3)
                 .foregroundColor(mutedColor)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 120)
+        .padding(.top, 80)
+    }
+
+    private var namiState: NamiState {
+        if viewModel.tts.isSpeaking {
+            return .speaking
+        } else if viewModel.isThinking {
+            return .thinking
+        } else if viewModel.speechRecognizer.isRecording {
+            return .listening
+        } else {
+            return .idle
+        }
     }
 
     private var toolActivityRow: some View {

@@ -26,6 +26,11 @@ final class ChatViewModel {
     var pendingImages: [PlatformImage] = []
     var selectedPhotoItems: [PhotosPickerItem] = []
 
+    // Typewriter effect state
+    var typewriterMessageID: UUID?
+    var typewriterDisplayedText: String = ""
+    private var typewriterTask: Task<Void, Never>?
+
     let speechRecognizer = SpeechRecognizer()
     let tts = TextToSpeechService()
 
@@ -275,9 +280,48 @@ final class ChatViewModel {
         lastToolsUsed = toolsUsed ?? (activeTools.isEmpty ? nil : activeTools)
         activeTools = []
         isThinking = false
+
+        // Start typewriter effect
+        startTypewriter(text: text, messageID: reply.id)
+
         if tts.autoSpeak {
             tts.speak(text, messageID: reply.id)
         }
+    }
+
+    // MARK: - Typewriter Effect
+
+    private func startTypewriter(text: String, messageID: UUID) {
+        // Cancel any existing typewriter
+        typewriterTask?.cancel()
+        typewriterTask = nil
+
+        typewriterMessageID = messageID
+        typewriterDisplayedText = ""
+
+        typewriterTask = Task {
+            let chars = Array(text)
+            var displayed = ""
+
+            for char in chars {
+                if Task.isCancelled { break }
+
+                displayed.append(char)
+                typewriterDisplayedText = displayed
+
+                // ~50 chars/sec for natural feel
+                try? await Task.sleep(nanoseconds: 20_000_000)
+            }
+
+            // Typewriter complete
+            typewriterMessageID = nil
+        }
+    }
+
+    func skipTypewriter() {
+        typewriterTask?.cancel()
+        typewriterTask = nil
+        typewriterMessageID = nil
     }
 
     private func handleError(_ error: Error) {
@@ -296,6 +340,8 @@ final class ChatViewModel {
                 self.handleToolUse(tool)
             case .notification(let title, let body):
                 self.handleNotification(title: title, body: body)
+            case .creation(let id, let name, let type):
+                self.handleCreation(id: id, name: name, type: type)
             case .error(let error):
                 self.handleError(APIError.httpError(status: 0, body: error))
             case .pong:
@@ -319,5 +365,12 @@ final class ChatViewModel {
         )
         messages.append(notification)
         persistMessage(notification)
+    }
+
+    private func handleCreation(id: String, name: String, type: String) {
+        let info = CreationInfo(id: id, name: name, type: type)
+        let creationMsg = ChatMessage(creation: info)
+        messages.append(creationMsg)
+        // Don't persist creation messages - they're transient UI
     }
 }

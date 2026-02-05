@@ -17,7 +17,10 @@ final class ShareViewModel {
 
     /// Opens the main app with shared content pre-filled in chat input
     func openInApp(extensionContext: NSExtensionContext?) {
-        guard !extractedContent.isEmpty else { return }
+        guard !extractedContent.isEmpty else {
+            print("[ShareExt] No content to share")
+            return
+        }
 
         isSending = true
 
@@ -27,16 +30,55 @@ final class ShareViewModel {
         SharedConfig.sharedDefaults.synchronize()
 
         print("[ShareExt] saved pending share: \(payload.prefix(100))...")
+        print("[ShareExt] sharedDefaults verify: \(SharedConfig.sharedDefaults.string(forKey: "com.meow.pendingShare")?.prefix(50) ?? "nil")")
 
-        // Open main app via URL scheme using extension's openURL
-        if let url = URL(string: "meow://share") {
-            extensionContext?.open(url) { success in
-                print("[ShareExt] openURL success: \(success)")
-            }
+        // Open main app via URL scheme
+        guard let url = URL(string: "meow://share") else {
+            print("[ShareExt] Failed to create URL")
+            isSending = false
+            return
         }
+
+        print("[ShareExt] Attempting to open URL: \(url)")
+
+        // Use responder chain to open URL (works better than extensionContext.open)
+        openURLViaResponderChain(url)
 
         isDone = true
         isSending = false
+    }
+
+    /// Opens URL via selector on shared UIApplication
+    /// This workaround uses the undocumented ability to access UIApplication
+    /// from an extension via the shared selector
+    @discardableResult
+    private func openURLViaResponderChain(_ url: URL) -> Bool {
+        // Access UIApplication via class method selector
+        let selectorOpenURL = sel_registerName("openURL:")
+
+        guard let applicationClass = NSClassFromString("UIApplication") else {
+            print("[ShareExt] UIApplication class not found")
+            return false
+        }
+
+        // Get shared application instance
+        let sharedAppSelector = NSSelectorFromString("sharedApplication")
+        guard applicationClass.responds(to: sharedAppSelector) else {
+            print("[ShareExt] sharedApplication selector not found")
+            return false
+        }
+
+        let sharedApp = (applicationClass as AnyObject).perform(sharedAppSelector)?.takeUnretainedValue()
+
+        // Call openURL: on the shared application
+        guard let app = sharedApp, (app as AnyObject).responds(to: selectorOpenURL) else {
+            print("[ShareExt] openURL: selector not found")
+            return false
+        }
+
+        print("[ShareExt] Calling openURL via selector")
+        _ = (app as AnyObject).perform(selectorOpenURL, with: url)
+        return true
     }
 
     /// Legacy: send directly to server (kept for offline queue)

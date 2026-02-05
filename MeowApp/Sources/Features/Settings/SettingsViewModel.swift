@@ -46,6 +46,7 @@ final class SettingsViewModel {
 
         Task { await apiClient.configure(baseURL: serverURL, apiKey: apiKey) }
         wsManager.configure(baseURL: serverURL, apiKey: apiKey)
+        wsManager.clearError()
 
         successMessage = "Configuration saved"
         scheduleDismissSuccess()
@@ -124,6 +125,7 @@ final class SettingsViewModel {
     func testConnection() {
         isLoadingStatus = true
         errorMessage = nil
+        wsManager.clearError()
 
         Task { @MainActor in
             do {
@@ -131,6 +133,9 @@ final class SettingsViewModel {
                 self.isLoadingStatus = false
                 self.successMessage = "Connection successful"
                 scheduleDismissSuccess()
+                // Reload server status after successful test
+                loadServerStatus()
+                loadModels()
             } catch {
                 self.isLoadingStatus = false
                 self.errorMessage = "Connection failed: \(error.localizedDescription)"

@@ -120,6 +120,10 @@ final class WebSocketManager {
         lastError = error.localizedDescription
     }
 
+    func clearError() {
+        lastError = nil
+    }
+
     private func handleDisconnect(_ error: Error) {
         isConnected = false
         lastError = error.localizedDescription

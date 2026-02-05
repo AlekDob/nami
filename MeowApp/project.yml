@@ -1,4 +1,4 @@
-name: MeowApp
+name: NamiOS
 options:
   bundleIdPrefix: com.alekdob
   deploymentTarget:
@@ -27,7 +27,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.alekdob.MeowApp
-        PRODUCT_NAME: MeowApp
+        PRODUCT_NAME: NamiOS
         GENERATE_INFOPLIST_FILE: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
@@ -48,11 +48,11 @@ targets:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        NSFaceIDUsageDescription: "Unlock MeowApp with Face ID"
-        NSSpeechRecognitionUsageDescription: "Meow uses speech recognition for voice input"
-        NSMicrophoneUsageDescription: "Meow needs the microphone for voice input"
-        NSPhotoLibraryUsageDescription: "Meow needs access to your photos to share images in chat"
-        NSCameraUsageDescription: "Meow needs camera access to take photos for chat"
+        NSFaceIDUsageDescription: "Unlock NamiOS with Face ID"
+        NSSpeechRecognitionUsageDescription: "Nami uses speech recognition for voice input"
+        NSMicrophoneUsageDescription: "Nami needs the microphone for voice input"
+        NSPhotoLibraryUsageDescription: "Nami needs access to your photos to share images in chat"
+        NSCameraUsageDescription: "Nami needs camera access to take photos for chat"
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
         CFBundleURLTypes:
@@ -81,7 +81,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.alekdob.MeowApp.ShareExtension
-        PRODUCT_NAME: MeowShare
+        PRODUCT_NAME: NamiShare
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: ShareExtension/Info.plist
         CODE_SIGN_ENTITLEMENTS: ShareExtension/MeowShareExtension.entitlements

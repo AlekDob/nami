@@ -12,6 +12,10 @@
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>Send to Meow</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>meow</string>
+	</array>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
