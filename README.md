@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="docs/meow-banner.png" alt="Meow - AI Personal Assistant" width="600">
+  <img src="docs/nami-banner.png" alt="NamiOS - Self-Evolving AI Companion" width="600">
 </p>
 
-<h1 align="center">Meow</h1>
+<h1 align="center">NamiOS</h1>
 
 <p align="center">
-  <strong>Your self-hosted AI personal assistant that lives on your server.</strong><br>
-  Memory, personality, scheduled tasks, Discord — all yours.
+  <strong>波 Nami — A self-evolving AI companion that grows with you.</strong><br>
+  Memory, personality, creations, voice — all yours.
 </p>
 
 <p align="center">
@@ -14,41 +14,60 @@
   <img src="https://img.shields.io/badge/AI%20SDK-v6-purple" alt="AI SDK">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
   <img src="https://img.shields.io/badge/TypeScript-strict-blue" alt="TypeScript">
+  <img src="https://img.shields.io/badge/SwiftUI-iOS%20%7C%20macOS-orange" alt="SwiftUI">
 </p>
 
 ---
 
-## What is Meow?
+## What is NamiOS?
 
-Meow is an **always-on AI assistant** you self-host on your own server. It has persistent memory, a tamagotchi-like personality, scheduled autonomous tasks, and connects to Discord, email, and X/Twitter.
+NamiOS is a **personal AI operating system** — a self-hosted AI companion that evolves over time. It features a fluid wave-shaped entity called **Nami** (波 = "wave" in Japanese), persistent memory, autonomous creations, voice interaction, and scheduled tasks.
 
-No cloud. No subscriptions. Your data stays on your machine.
+No cloud subscriptions. Your data stays on your server.
 
 ```
-  /\_/\
- ( o.o )  "ricordami di controllare le email alle 9"
-  > ^ <   =^.^= Task scheduled! Next trigger: in 14 hours
+    ～～～
+   ～ 👁👁 ～    "create a weather dashboard for me"
+    ～～～～～    Nami: On it! Building Weather Hub...
 ```
 
 ## Features
 
+- **Evolving Entity** — Nami is a fluid wave that reacts to voice, touch, and conversation
+- **Creation System** — Nami can build mini web apps autonomously (Weather, Cinema, Tools)
 - **Agentic Loop** — AI decides which tools to call, up to 10 steps per turn
 - **Persistent Memory** — 2-layer system: curated MEMORY.md + daily append-only notes
-- **Hybrid Search** — SQLite FTS5 + vector similarity (sqlite-vec) for finding memories
+- **Hybrid Search** — SQLite FTS5 + vector similarity for finding memories
 - **Soul System** — Tamagotchi personality that evolves with you (SOUL.md)
-- **Scheduled Tasks** — Cron jobs that run the full agent: fetch news, check email, monitor X
-- **Smart Model Selection** — Auto-detects API keys, picks best model per tier (fast/smart/pro)
-- **Modular Skills** — Drop `.md` files in `data/skills/` to teach new capabilities
-- **Discord Bot** — Slash commands: `/ask`, `/status`, `/jobs`, `/memory`
+- **Voice Interaction** — ElevenLabs TTS + Apple Speech Recognition
+- **Scheduled Tasks** — Cron jobs that run the full agent autonomously
+- **Native Apps** — SwiftUI apps for iOS/iPadOS/macOS with fluid Nami entity
+- **Smart Model Selection** — Auto-detects API keys, picks best model per tier
 - **Multi-Provider** — OpenRouter, OpenAI, Anthropic, Moonshot, Together AI
-- **CLI with ASCII Cat** — Animated terminal interface with tool-use indicators
+
+## Native Apps
+
+NamiOS includes native SwiftUI apps for Apple platforms:
+
+| Platform | Features |
+|----------|----------|
+| **iOS/iPadOS** | Chat, Voice, Memory browser, OS creations, Nami entity |
+| **macOS** | Split view, keyboard shortcuts, system integration |
+
+The Nami entity is a fluid wave shape that:
+- Reacts to your voice amplitude
+- Responds to touch/gestures
+- Shows emotions (happy, thinking, speaking)
+- Evolves through XP levels (Ripple → Ocean)
 
 ## Quick Start
 
+### Server (Backend)
+
 ```bash
 # Clone
-git clone https://github.com/AlekDob/meow.git
-cd meow
+git clone https://github.com/AlekDob/nami.git
+cd nami
 
 # Install dependencies
 bun install
@@ -61,7 +80,9 @@ cp .env.example .env
 bun run dev
 ```
 
-On first launch, Meow runs an onboarding flow to learn your name and preferences, then creates a unique personality in `data/soul/SOUL.md`.
+### iOS/macOS App
+
+Open `MeowApp/NamiOS.xcodeproj` in Xcode and run on your device.
 
 ## Configuration
 
@@ -74,86 +95,59 @@ OPENAI_API_KEY=sk-...              # Direct OpenAI
 MOONSHOT_API_KEY=sk-...            # Kimi K2
 TOGETHER_API_KEY=sk-...            # Together AI
 
+# API access
+NAMI_API_KEY=your-secret-key       # For REST/WebSocket auth
+
 # Optional: force a model tier
 MODEL_PRESET=smart                 # fast | smart | pro
 
-# Optional: Discord bot
-DISCORD_TOKEN=...
-DISCORD_CLIENT_ID=...
+# Optional: Voice
+ELEVENLABS_API_KEY=...             # ElevenLabs TTS
 ```
-
-Use `/models` in the CLI to see available models, `/model <name>` to switch.
 
 ## Architecture
 
 ```
-src/
-├── agent/          # Core agent loop, system prompt, memory flush
-├── cli/            # Terminal UI (ASCII cat, commands, input loop)
-├── tools/          # web-fetch, file-read/write, email, X/Twitter, scheduler
-├── memory/         # 2-layer store + SQLite FTS5/vector indexer
-├── scheduler/      # Cron engine for autonomous tasks
-├── channels/       # Discord bot
-├── skills/         # Markdown skill loader
-├── soul/           # Tamagotchi personality system
-├── config/         # Model registry, env loading
-└── utils/          # Runtime detection
+Server (Hetzner)
+├── src/
+│   ├── agent/          # Core agent loop, system prompt
+│   ├── api/            # REST + WebSocket server
+│   ├── tools/          # shell, web-fetch, file I/O, email, X
+│   ├── memory/         # 2-layer store + SQLite search
+│   ├── scheduler/      # Cron engine for autonomous tasks
+│   ├── creations/      # Mini web app builder
+│   ├── skills/         # Markdown skill loader
+│   └── soul/           # Personality system
+│
+└── data/               # User data (not in git)
+    ├── memory/         # MEMORY.md + daily notes
+    ├── soul/           # SOUL.md personality
+    ├── creations/      # Generated web apps
+    └── jobs/           # Scheduler state
 
-data/               # User data (not in git)
-├── memory/         # MEMORY.md + daily notes + search index
-├── soul/           # SOUL.md personality
-├── skills/         # Custom skill files
-└── jobs/           # Scheduler state
+iOS/macOS App (SwiftUI)
+├── Sources/
+│   ├── Core/           # API client, WebSocket, Auth
+│   ├── Features/
+│   │   ├── Chat/       # Conversation UI
+│   │   ├── Nami/       # Entity views, props, stats
+│   │   ├── Memory/     # Browser, detail views
+│   │   ├── Soul/       # Personality editor
+│   │   └── OS/         # Creations gallery
+│   └── Shared/         # Theme, components
 ```
-
-29 TypeScript files, ~2600 lines. Built with [Vercel AI SDK v6](https://sdk.vercel.ai/).
-
-## Scheduled Tasks
-
-Meow can run autonomous tasks on a schedule — not just reminders, but full agent actions with tools:
-
-```
-You: "alle 9 vai su ansa.it e fammi un riepilogo delle notizie"
-Meow: Task scheduled! Next trigger: in 14 hours
-
-You: "ogni lunedi controlla le email e fammi un digest"
-Meow: Task scheduled! Repeats every Monday at 9am
-```
-
-When a task fires, the agent runs with full tool access (web fetch, email, X/Twitter, file I/O).
-
-## Memory System
-
-Inspired by [Clawdbot](https://github.com/blader/Claudeception):
-
-| Layer | File | Purpose |
-|-------|------|---------|
-| **Hot** | `daily/YYYY-MM-DD.md` | Append-only conversation log |
-| **Cold** | `MEMORY.md` | Curated long-term knowledge |
-| **Index** | `index.sqlite` | FTS5 + vector search |
-
-Search: `0.7 * vectorScore + 0.3 * keywordScore`, min threshold 0.35.
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
 | Runtime | Bun / Node.js |
-| Language | TypeScript (strict) |
+| Language | TypeScript (strict), Swift |
 | AI SDK | Vercel AI SDK v6 |
 | Providers | OpenRouter, OpenAI, Anthropic, Moonshot, Together |
 | Search | SQLite FTS5 + sqlite-vec |
-| Discord | discord.js v14 |
-| Validation | Zod |
-
-## Development
-
-```bash
-bun run dev          # Start dev mode
-bun run build        # Compile to bin/meow
-bun run typecheck    # TypeScript strict check
-bun test             # Run tests
-```
+| Voice | ElevenLabs TTS, Apple Speech |
+| iOS/macOS | SwiftUI, SwiftData, @Observable |
 
 ## License
 
