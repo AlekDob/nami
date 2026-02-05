@@ -60,6 +60,28 @@ Native SwiftUI apps for iOS/iPadOS/macOS are available in a **separate private r
 
 ## Quick Start
 
+### One-Line Install (Recommended)
+
+```bash
+npx create-namios@latest
+```
+
+This will:
+1. Download NamiOS
+2. Install dependencies
+3. Run interactive configuration
+4. Set up your `.env` file
+
+Then start:
+
+```bash
+cd namios
+nami start    # Start daemon
+nami          # Interactive CLI
+```
+
+### Manual Install
+
 ```bash
 # Clone
 git clone https://github.com/AlekDob/nami.git
@@ -74,6 +96,16 @@ cp .env.example .env
 
 # Run
 bun run dev
+```
+
+### CLI Commands
+
+```bash
+nami start     # Start daemon (background)
+nami stop      # Stop daemon
+nami status    # Check status
+nami logs      # View logs
+nami           # Interactive chat
 ```
 
 ## Configuration
