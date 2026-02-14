@@ -111,7 +111,17 @@ export class MemoryStore {
 
   /** Reindex all memory files */
   private async reindexAll(): Promise<void> {
-    await this.indexFileIfExists('MEMORY.md');
+    // Index all .md files in the root memory directory
+    try {
+      const rootFiles = await readdir(this.basePath);
+      for (const f of rootFiles) {
+        if (f.endsWith('.md')) {
+          await this.indexFileIfExists(f);
+        }
+      }
+    } catch {
+      // basePath may not exist yet
+    }
 
     const dailyDir = resolve(this.basePath, 'daily');
     try {
