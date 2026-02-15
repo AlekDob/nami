@@ -4,6 +4,8 @@ import { z } from 'zod';
 const REDDIT_BASE = 'https://www.reddit.com';
 const USER_AGENT = 'NamiOS/0.1 (personal assistant)';
 const REQUEST_TIMEOUT = 15_000;
+const MAC_URL = process.env.MAC_AGENT_URL;
+const MAC_TOKEN = process.env.MAC_AGENT_TOKEN;
 
 interface RedditListing {
   kind: string;
@@ -26,10 +28,10 @@ interface RedditPost {
   isNsfw: boolean;
 }
 
-async function redditFetch(
+function buildRedditUrl(
   path: string,
   params?: Record<string, string>,
-): Promise<RedditListing> {
+): string {
   const url = new URL(`${REDDIT_BASE}${path}.json`);
   url.searchParams.set('raw_json', '1');
   if (params) {
@@ -37,14 +39,53 @@ async function redditFetch(
       url.searchParams.set(k, v);
     }
   }
+  return url.toString();
+}
 
-  const res = await fetch(url.toString(), {
+// Fetch Reddit via Mac agent (bypass datacenter IP block)
+// Brain: reddit-datacenter-403-mac-proxy
+async function macProxyFetch(url: string): Promise<RedditListing> {
+  if (!MAC_URL || !MAC_TOKEN) {
+    throw new Error('Reddit blocked (403) and Mac proxy not configured');
+  }
+  const cmd = `curl -s -H "User-Agent: ${USER_AGENT}" "${url}"`;
+  const res = await fetch(`${MAC_URL}/exec`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${MAC_TOKEN}`,
+    },
+    body: JSON.stringify({ command: cmd }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  const data = (await res.json()) as {
+    success?: boolean;
+    stdout?: string;
+    error?: string;
+  };
+  if (!data.success || !data.stdout) {
+    throw new Error(data.error || 'Mac proxy fetch failed');
+  }
+  return JSON.parse(data.stdout) as RedditListing;
+}
+
+async function redditFetch(
+  path: string,
+  params?: Record<string, string>,
+): Promise<RedditListing> {
+  const url = buildRedditUrl(path, params);
+
+  const res = await fetch(url, {
     headers: { 'User-Agent': USER_AGENT },
     signal: AbortSignal.timeout(REQUEST_TIMEOUT),
   });
 
   if (res.status === 429) {
     throw new Error('Reddit rate limit hit. Try again in a few minutes.');
+  }
+  // Datacenter IP blocked — fallback to Mac proxy
+  if (res.status === 403) {
+    return macProxyFetch(url);
   }
   if (!res.ok) {
     throw new Error(`Reddit ${res.status}: ${await res.text()}`);
@@ -236,18 +277,22 @@ export const redditPostComments = tool({
   }),
   execute: async ({ permalink, sort, limit }) => {
     try {
-      const url = new URL(`${REDDIT_BASE}${permalink}.json`);
-      url.searchParams.set('sort', sort);
-      url.searchParams.set('limit', limit);
-      url.searchParams.set('raw_json', '1');
+      const commentUrl = buildRedditUrl(permalink, { sort, limit });
 
-      const res = await fetch(url.toString(), {
+      let data: [RedditListing, RedditListing];
+      const res = await fetch(commentUrl, {
         headers: { 'User-Agent': USER_AGENT },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT),
       });
-      if (!res.ok) throw new Error(`Reddit ${res.status}`);
 
-      const data = (await res.json()) as [RedditListing, RedditListing];
+      if (res.status === 403) {
+        const raw = await macProxyFetch(commentUrl);
+        data = raw as unknown as [RedditListing, RedditListing];
+      } else if (!res.ok) {
+        throw new Error(`Reddit ${res.status}`);
+      } else {
+        data = (await res.json()) as [RedditListing, RedditListing];
+      }
       const post = parsePosts(data[0])[0] || null;
       const comments = data[1].data.children
         .filter((c) => c.kind === 't1')
