@@ -3,23 +3,15 @@ import { z } from 'zod';
 import { resolve, normalize } from 'path';
 import { readFile } from 'fs/promises';
 
-const DATA_DIR = resolve(process.cwd(), 'data');
-
-function isPathSafe(filePath: string): boolean {
-  const resolved = resolve(DATA_DIR, filePath);
-  return resolved.startsWith(DATA_DIR);
-}
+const PROJECT_ROOT = resolve(process.cwd());
 
 export const fileRead = tool({
-  description: 'Read a file from the data/ directory',
+  description: 'Read a file. Path is relative to project root.',
   inputSchema: z.object({
-    path: z.string().describe('Relative path within data/ directory'),
+    path: z.string().describe('Relative path from project root'),
   }),
   execute: async ({ path }) => {
-    if (!isPathSafe(path)) {
-      return { exists: false, content: '', error: 'Path outside data/' };
-    }
-    const fullPath = resolve(DATA_DIR, normalize(path));
+    const fullPath = resolve(PROJECT_ROOT, normalize(path));
     try {
       const content = await readFile(fullPath, 'utf-8');
       return { exists: true, content };

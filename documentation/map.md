@@ -36,6 +36,7 @@ Quick reference to all project knowledge. Start here when beginning a new sessio
 - **@Observable cascade + scroll freeze** (Feb 15) — See `bugs/fix-observable-cascade-macos-scroll-freeze.md`
 - **WS recovery chain + push tap empty** (Feb 15) — See `bugs/fix-websocket-recovery-chain-and-push-tap.md`
 - **NSSpeechRecognition crash** (Feb 2) — See `bugs/fix-nsspeechrecognition-usage-description-crash.md`
+- **macOS freeze on long code blocks** (Feb 18) — See `bugs/fix-macos-freeze-long-code-blocks.md`
 
 ### Platform
 - **WKWebView macOS sandbox** (Feb 5) — See `bugs/fix-wkwebview-macos-sandbox-loadhtmlstring.md`
@@ -43,6 +44,7 @@ Quick reference to all project knowledge. Start here when beginning a new sessio
 
 ### Backend
 - **MCP Loader stdio transport** (Feb 12) — See `bugs/fix-mcp-loader-stdio-transport-missing.md`
+- **Cron double push + no deep link** (Feb 16) — See `bugs/fix-cron-double-push-missing-sessionid.md`
 
 ## Patterns
 
@@ -58,6 +60,11 @@ Quick reference to all project knowledge. Start here when beginning a new sessio
 | **Light mode code blocks** | `patterns/pattern-swiftui-light-mode-code-blocks.md` | Dark background code blocks in both themes |
 | **NPM versioning** | `patterns/pattern-npm-versioning-workflow.md` | npm publish + GitHub sync workflow |
 | **WebSocket broadcast** | `patterns/pattern-websocket-broadcast-creations.md` | Real-time creation notifications to clients |
+| **AI Commands (Raycast-style)** | `patterns/pattern-ai-commands-raycast-style.md` | Global hotkeys → AI text processing → clipboard/panel/chat |
+| **Chromium cookie extraction** | `patterns/pattern-chromium-cookie-extraction-bun-sqlite.md` | Extract encrypted cookies from Dia/Chrome/Brave with bun:sqlite |
+| **macOS Services (right-click)** | `patterns/pattern-macos-services-right-click-integration.md` | AI Commands in right-click menu via NSServices |
+| **Local Commands + Self-Generation** | `patterns/pattern-local-commands-self-generation.md` | Non-AI bash commands + Nami creates commands via chat |
+| **Notch Panel (Dynamic Island)** | `patterns/pattern-notch-panel-dynamic-island-macos.md` | macOS notch overlay with quick commands + AI execution |
 
 ## Decisions
 
@@ -78,6 +85,16 @@ Quick reference to all project knowledge. Start here when beginning a new sessio
 | **Mixpanel token CLI arg** | `gotchas/gotcha-mcp-mixpanel-token-cli-arg.md` |
 | **MCP configuration patterns** | `gotchas/gotcha-mcp-configuration-patterns-http-vs-stdio.md` |
 | **Animation on LazyVStack** | `gotchas/gotcha-animation-on-lazyvstack.md` |
+| **onTapGesture blocks textSelection** | `gotchas/gotcha-ontapgesture-blocks-textselection.md` |
+| **Duplicate systemd services** | `gotchas/gotcha-duplicate-systemd-services.md` |
+| **NSTextView.scrollableTextView() height=0** | `gotchas/gotcha-nstextview-scrollable-intrinsiccontentsize.md` |
+| **AutoSizingTextView layout→invalidate loop** | `gotchas/gotcha-autosizingtextview-layout-loop.md` |
+| **X/Twitter blocks Playwright Chromium login** | `gotchas/gotcha-x-twitter-blocks-playwright-chromium.md` |
+| **macOS Xcode Python3 vs pip3 packages** | `gotchas/gotcha-macos-xcode-python3-pip-packages.md` |
+| **Chromium AES first-block garbage** | `gotchas/gotcha-chromium-aes-first-block-garbage.md` |
+| **xcodegen regenerates Info.plist** | `gotchas/gotcha-xcodegen-regenerates-info-plist.md` |
+| **PBS only discovers Services from /Applications** | `gotchas/gotcha-macos-pbs-services-discovery-location.md` |
+| **NSPortName must match CFBundleName** | `gotchas/gotcha-nsportname-must-match-cfbundlename.md` |
 
 ## Guides
 
@@ -87,6 +104,7 @@ Quick reference to all project knowledge. Start here when beginning a new sessio
 | **Server Setup** | `guide/server/setup.md` | Developers |
 | **Server Usage** | `guide/server/usage.md` | Developers |
 | **API Reference** | `guide/server/api.md` | Developers |
+| **Model Providers** | `guide/server/model-providers.md` | Developers/Humans |
 | **Test Plan** | `guide/testing/test-plan.md` | QA/Dev |
 | **Push Notifications Test** | `guide/testing/push-notifications.md` | QA/Dev |
 | **Project Plan** | `guide/project/plan.md` | All |
@@ -96,4 +114,4 @@ Quick reference to all project knowledge. Start here when beginning a new sessio
 - iOS 17+ / iPadOS 17+ / macOS 14+
 
 ## Last Updated
-2026-02-15 (Brain migration: 13 entries moved from global Brain to project docs)
+2026-02-18

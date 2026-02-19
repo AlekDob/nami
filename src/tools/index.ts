@@ -2,7 +2,6 @@ import { webFetch } from './web-fetch.js';
 import { fileRead } from './file-read.js';
 import { fileWrite } from './file-write.js';
 import { emailRead } from './email-read.js';
-import { xGetTimeline, xSearchTweets, xGetMentions } from './x-api.js';
 import {
   xBrowseTimeline,
   xBrowseProfile,
@@ -26,6 +25,7 @@ import { planWeeklyMeals } from './meal-planner.js';
 import { generateShoppingList } from './shopping-list.js';
 import { macFileRead, macExec } from './mac-remote.js';
 import { createAppleReminder } from './apple-reminder.js';
+import { createLocalCommand, createAICommand } from './local-command.js';
 import {
   redditFeed,
   redditSubreddit,
@@ -46,9 +46,6 @@ export const coreTools = {
   fileRead,
   fileWrite,
   emailRead,
-  xGetTimeline,
-  xSearchTweets,
-  xGetMentions,
   xBrowseTimeline,
   xBrowseProfile,
   xBrowseSearch,
@@ -87,6 +84,10 @@ export function buildTools(memory: MemoryStore, scheduler?: Scheduler) {
     tools.macExec = macExec;
     tools.createAppleReminder = createAppleReminder;
   }
+
+  // Command creation tools (always available)
+  tools.createLocalCommand = createLocalCommand;
+  tools.createAICommand = createAICommand;
 
   if (process.env.REDDIT_USERNAME && process.env.REDDIT_PASSWORD) {
     tools.redditPost = redditPost;

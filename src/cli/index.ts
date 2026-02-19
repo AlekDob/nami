@@ -4,6 +4,20 @@ import { loadConfig } from '../config/index.js';
 import type { ModelMessage } from 'ai';
 import { Scheduler } from '../scheduler/cron.js';
 import { startDiscordBot, sendDiscordNotification } from '../channels/discord.js';
+import { initAPNs, sendPushNotification } from '../channels/apns.js';
+import { startApiServer } from '../api/server.js';
+import { broadcastNotification } from '../api/websocket.js';
+import { isApiEnabled } from '../api/auth.js';
+import { SessionStore } from '../sessions/store.js';
+
+async function isPortInUse(port: number): Promise<boolean> {
+  try {
+    const res = await fetch(`http://localhost:${port}/api/health`);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 import {
   printSplash, printInfoBar, printInputBox, printInputBoxClose,
   printToolUse, startThinking, stopThinking,
@@ -255,7 +269,7 @@ async function inputLoop(agent: Agent, history: ModelMessage[]) {
 
 async function main() {
   const config = await loadConfig();
-  const dataDir = config.scheduler?.dataDir || './data';
+  const dataDir = config.scheduler?.dataDir || '/root/meow/data';
   const agent = new Agent(config.agent, dataDir);
   await agent.init();
 
@@ -270,6 +284,9 @@ async function main() {
     'DO NOT call scheduleTask, listTasks, or cancelTask. ' +
     'Just execute the task directly using your other tools and reply.\n\n';
 
+  const sessions = new SessionStore(dataDir);
+  await sessions.init();
+
   const scheduler = new Scheduler(dataDir, async (job) => {
     const jobMessages: ModelMessage[] = [
       { role: 'user', content: JOB_PREFIX + job.task },
@@ -278,10 +295,17 @@ async function main() {
     printJobOutput(job.name, result);
     const discordMsg = `**=^.^= SCHEDULED TASK: ${job.name}**\n\n${result}`;
     await sendDiscordNotification(discordMsg);
+    // Persist to session so push tap can deep-link
+    const session = await sessions.createSession('job', job.name);
+    await sessions.appendMessage(session.id, 'user', job.task);
+    await sessions.appendMessage(session.id, 'assistant', result);
+    await sendPushNotification('Task: ' + job.name, result.slice(0, 200), session.id);
   });
   scheduler.onNotify = (job) => {
     const alert = `⏰ **Task firing:** ${job.name}\n_${job.task}_`;
     sendDiscordNotification(alert);
+    broadcastNotification(job.name, job.task);
+    // No push here — only send push when result is ready (onTrigger)
   };
   await scheduler.init();
 
@@ -298,11 +322,43 @@ async function main() {
     });
   }
 
+
+  // Start APNs push notifications
+  const apnsKeyPath = process.env.APNS_KEY_PATH;
+  if (apnsKeyPath) {
+    await initAPNs({
+      keyPath: apnsKeyPath,
+      keyId: process.env.APNS_KEY_ID || '',
+      teamId: process.env.APNS_TEAM_ID || '',
+      bundleId: process.env.APNS_BUNDLE_ID || '',
+      production: process.env.APNS_PRODUCTION === 'true',
+      dataDir,
+    });
+  }
+
+  // Start REST API + WebSocket server (skip if daemon already running)
+  let daemonRunning = false;
+  if (isApiEnabled()) {
+    const apiPort = parseInt(process.env.API_PORT || "3000", 10);
+    daemonRunning = await isPortInUse(apiPort);
+    if (daemonRunning) {
+      console.log(`  ${c.dim}API server already running on port ${apiPort} (daemon)${c.reset}`);
+    } else {
+      startApiServer({
+        agent,
+        scheduler,
+        soul: agent.getSoulLoader(),
+        port: apiPort,
+        dataDir,
+      });
+    }
+  }
+
   const history: ModelMessage[] = [];
 
   console.clear?.();
   printSplash();
-  printInfoBar(agent.getModelInfo(), Boolean(discordToken));
+  printInfoBar(agent.getModelInfo(), Boolean(discordToken), daemonRunning);
   console.log('');
 
   if (agent.needsOnboarding) {

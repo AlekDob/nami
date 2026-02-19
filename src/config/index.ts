@@ -8,7 +8,7 @@ export async function loadConfig(): Promise<Config> {
     agent: {
       openaiApiKey: process.env.OPENAI_API_KEY,
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-      modelName: process.env.MODEL_NAME || "openai/gpt-4o",
+      modelName: process.env.MODEL_NAME || "MiniMax-M2.5",
       modelEndpoint: process.env.MODEL_ENDPOINT,
       useOpenRouter: process.env.USE_OPENROUTER === "true",
       provider: process.env.PROVIDER as "openrouter" | "moonshot" | "together" | undefined,

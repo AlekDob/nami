@@ -139,6 +139,44 @@ export class Scheduler {
     }
   }
 
+  /**
+   * Parse a cron field into a sorted array of valid values.
+   * Supports: *, N, N-M (range), N,M,O (list), *​/N (step).
+   */
+  private parseField(
+    field: string,
+    min: number,
+    max: number,
+  ): number[] | null {
+    if (field === '*') return null; // null = wildcard (all values)
+
+    const values = new Set<number>();
+
+    for (const part of field.split(',')) {
+      const stepMatch = part.match(/^(?:(\d+)-(\d+)|\*)\/(\d+)$/);
+      const rangeMatch = part.match(/^(\d+)-(\d+)$/);
+
+      if (stepMatch && stepMatch[3]) {
+        const step = parseInt(stepMatch[3], 10);
+        const start = stepMatch[1] ? parseInt(stepMatch[1], 10) : min;
+        const end = stepMatch[2] ? parseInt(stepMatch[2], 10) : max;
+        if (!step || step <= 0) return null;
+        for (let i = start; i <= end; i += step) values.add(i);
+      } else if (rangeMatch) {
+        const start = parseInt(rangeMatch[1], 10);
+        const end = parseInt(rangeMatch[2], 10);
+        if (isNaN(start) || isNaN(end)) return null;
+        for (let i = start; i <= end; i++) values.add(i);
+      } else {
+        const n = parseInt(part, 10);
+        if (isNaN(n)) return null;
+        values.add(n);
+      }
+    }
+
+    return [...values].sort((a, b) => a - b);
+  }
+
   /** Calculate ms until next cron trigger */
   msUntilNext(cron: string): number | null {
     const presets: Record<string, number> = {
@@ -152,57 +190,54 @@ export class Scheduler {
     if (parts.length !== 5) return null;
     const [minStr, hourStr, , , dayOfWeekStr] = parts;
 
-    // Handle */N interval syntax (e.g. */30 * * * * = every 30 min)
-    const stepMatch = minStr.match(/^\*\/(\d+)$/);
-    if (stepMatch && hourStr === '*') {
-      const stepMin = parseInt(stepMatch[1], 10);
-      if (!stepMin || stepMin <= 0) return null;
-      const now = new Date();
-      const currentMin = now.getMinutes();
-      const nextStep = Math.ceil((currentMin + 1) / stepMin) * stepMin;
-      const minsUntil = nextStep <= 59
-        ? nextStep - currentMin
-        : stepMin - (currentMin % stepMin);
-      const target = new Date(now);
-      target.setMinutes(currentMin + minsUntil, 0, 0);
-      return Math.max(target.getTime() - now.getTime(), MIN_INTERVAL_MS);
-    }
+    const minutes = this.parseField(minStr, 0, 59);
+    const hours = this.parseField(hourStr, 0, 23);
+    const daysOfWeek = this.parseField(dayOfWeekStr, 0, 6);
 
     const now = new Date();
-    const target = new Date(now);
+    const curMin = now.getMinutes();
+    const curHour = now.getHours();
+    const curDow = now.getDay();
 
-    // Specific hour:minute (e.g. 30 17 * * *)
-    if (hourStr !== '*' && minStr !== '*') {
-      const h = parseInt(hourStr, 10);
-      const m = parseInt(minStr, 10);
-      if (isNaN(h) || isNaN(m)) return null;
-      target.setHours(h, m, 0, 0);
+    // Find next matching minute >= current context
+    const nextMin = (validMins: number[], afterMin: number) =>
+      validMins.find(m => m > afterMin) ?? null;
 
-      if (dayOfWeekStr !== '*') {
-        const targetDay = parseInt(dayOfWeekStr, 10);
-        if (isNaN(targetDay)) return null;
-        const currentDay = target.getDay();
-        let daysAhead = targetDay - currentDay;
-        if (daysAhead < 0) daysAhead += 7;
-        if (daysAhead === 0 && target <= now) daysAhead = 7;
-        target.setDate(target.getDate() + daysAhead);
-      } else if (target <= now) {
-        target.setDate(target.getDate() + 1);
+    // Search up to 8 days ahead to find the next valid trigger
+    for (let dayOffset = 0; dayOffset <= 7; dayOffset++) {
+      const candidate = new Date(now);
+      candidate.setDate(candidate.getDate() + dayOffset);
+      candidate.setSeconds(0, 0);
+
+      const dow = (curDow + dayOffset) % 7;
+      if (daysOfWeek && !daysOfWeek.includes(dow)) continue;
+
+      const validHours = hours ?? Array.from({ length: 24 }, (_, i) => i);
+      const validMins = minutes ?? Array.from({ length: 60 }, (_, i) => i);
+
+      for (const h of validHours) {
+        if (dayOffset === 0 && h < curHour) continue;
+        if (dayOffset === 0 && h === curHour) {
+          const m = nextMin(validMins, curMin);
+          if (m !== null) {
+            candidate.setHours(h, m, 0, 0);
+            return Math.max(
+              candidate.getTime() - now.getTime(),
+              MIN_INTERVAL_MS,
+            );
+          }
+          continue;
+        }
+        // First valid minute in this hour
+        candidate.setHours(h, validMins[0], 0, 0);
+        return Math.max(
+          candidate.getTime() - now.getTime(),
+          MIN_INTERVAL_MS,
+        );
       }
-
-      return target.getTime() - now.getTime();
     }
 
-    // Specific minute every hour (e.g. 30 * * * *)
-    if (minStr !== '*' && !stepMatch) {
-      const targetMin = parseInt(minStr, 10);
-      if (isNaN(targetMin)) return null;
-      target.setMinutes(targetMin, 0, 0);
-      if (target <= now) target.setHours(target.getHours() + 1);
-      return target.getTime() - now.getTime();
-    }
-
-    return 3_600_000;
+    return null;
   }
 
   private async loadJobs(): Promise<void> {

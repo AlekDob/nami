@@ -3,12 +3,7 @@ import { z } from 'zod';
 import { resolve, normalize, dirname } from 'path';
 import { writeFile, readFile, mkdir } from 'fs/promises';
 
-const DATA_DIR = resolve(process.cwd(), 'data');
-
-function isPathSafe(filePath: string): boolean {
-  const resolved = resolve(DATA_DIR, filePath);
-  return resolved.startsWith(DATA_DIR);
-}
+const PROJECT_ROOT = resolve(process.cwd());
 
 /** Parse markdown into a Map of heading -> body */
 function parseSections(content: string): Map<string, string> {
@@ -76,17 +71,14 @@ function isMemoryFile(path: string): boolean {
 
 export const fileWrite = tool({
   description:
-    'Write content to a file in the data/ directory. ' +
+    'Write content to a file. Path is relative to project root. ' +
     'For MEMORY.md, content is merged with existing sections automatically.',
   inputSchema: z.object({
-    path: z.string().describe('Relative path within data/ directory'),
+    path: z.string().describe('Relative path from project root'),
     content: z.string().describe('Content to write'),
   }),
   execute: async ({ path, content }) => {
-    if (!isPathSafe(path)) {
-      return { success: false, path: '', error: 'Path outside data/' };
-    }
-    const fullPath = resolve(DATA_DIR, normalize(path));
+    const fullPath = resolve(PROJECT_ROOT, normalize(path));
     try {
       await mkdir(dirname(fullPath), { recursive: true });
 

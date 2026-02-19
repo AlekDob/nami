@@ -11,6 +11,7 @@ import type { Scheduler } from '../scheduler/cron.js';
 import {
   detectApiKeys,
   pickBestModel,
+  pickFastDirectModel,
   findModel,
   createModel,
   formatModelList,
@@ -58,6 +59,10 @@ export class Agent {
   attachScheduler(scheduler: Scheduler): void {
     this.scheduler = scheduler;
     this.tools = buildTools(this.memory, scheduler);
+  }
+
+  getSoulLoader(): SoulLoader {
+    return this.soul;
   }
 
   async init(): Promise<void> {
@@ -148,16 +153,44 @@ export class Agent {
         durationMs: Date.now() - startTime,
       };
 
+      // Strip <think>...</think> reasoning tags from models like MiniMax M2.5
+      const text = result.text.replace(/<think>[\s\S]*?<\/think>\s*/g, '');
+
       const userMsg = this.lastUserMessage(messages);
       await this.memory.appendToDaily(
-        '**User**: ' + userMsg + '\n**Meow**: ' + result.text.slice(0, 500),
+        '**User**: ' + userMsg + '\n**Meow**: ' + text.slice(0, 500),
       );
 
-      return result.text;
+      return text;
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       return 'Error: ' + msg;
     }
+  }
+
+  /** Lightweight prompt execution — no tools, no memory, no session.
+   *  Always uses the fastest available model for low-latency command responses. */
+  async runCommand(prompt: string): Promise<{ result: string; model: string; durationMs: number }> {
+    const fastEntry = pickFastDirectModel(this.keys);
+    if (!fastEntry && !this.currentModelId) {
+      throw new Error('No model available. Set an API key.');
+    }
+    const startTime = Date.now();
+    const model = fastEntry
+      ? createModel(fastEntry, this.keys)
+      : this.resolveModel();
+    const modelLabel = fastEntry?.label || this.currentModelId || 'unknown';
+    console.log(`[Agent] runCommand using fast model: ${modelLabel}`);
+    const result = await generateText({
+      model,
+      messages: [{ role: 'user' as const, content: prompt }],
+    });
+    const text = result.text.replace(/<think>[\s\S]*?<\/think>\s*/g, '');
+    return {
+      result: text,
+      model: modelLabel,
+      durationMs: Date.now() - startTime,
+    };
   }
 
   private isMoonshotModel(): boolean {
@@ -194,7 +227,13 @@ export class Agent {
     const entry = this.currentModelId
       ? findModel(this.currentModelId)
       : null;
-    return entry?.vision ?? false;
+    // Known model: use registry flag. Unknown (custom): allow images, let API decide.
+    if (!entry) return true;
+    return entry.vision;
+  }
+
+  getModelId(): string | null {
+    return this.currentModelId;
   }
 
   listModels(): string {

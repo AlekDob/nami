@@ -94,6 +94,42 @@ The stale `isConnected` gotcha affects more than just send operations — it als
 - `src/channels/apns.ts` (server) — Added `sessionId` param to push payload
 - `src/api/websocket.ts` (server) — Passes `sessionId` to `sendPushNotification()`
 
+## Iterative Fixes (Same Session)
+
+The initial 4-part fix revealed several follow-up bugs during live testing:
+
+### Fix 5: `scenePhase → active` fires on first launch too
+`forceReconnect()` killed the initial WS connection at startup because `scenePhase → active` fires both on first launch AND return from background. Fix: added `hasBeenBackgrounded` flag in MeowApp — `handleBecameActive()` guards on `didConfigure && hasBeenBackgrounded`.
+
+### Fix 6: Recovery guard condition tied to `errorMessage` breaks when error is hidden
+After removing the "Connection lost" error message from UI (`errorMessage` no longer set by disconnect/handleError), all recovery paths stopped working because they used `guard errorMessage != nil`. Fix: changed all 4 guard conditions to use `isThinking` instead — the true indicator that a response is pending.
+
+### Fix 7: `currentSessionId` is nil for first conversation
+When user sends the first message, `currentSessionId` is nil until the WS `done` response assigns it. If WS dies before receiving the response, recovery can't fetch the session. Fix: `pollForResponse()` falls back to `fetchSessions()` and takes the most recent session from the server.
+
+### Fix 8: `loadSession()` doesn't reset `isThinking`
+Tapping a push notification calls `loadSessionById → loadSession`, which loads the response but never sets `isThinking = false`. Result: response text visible but wave animation continues, send button disabled. Fix: added `isThinking = false` and `activeTools = []` to `loadSession()`.
+
+### Fix 9: `willPresent` only fires in foreground
+Push notification `willPresent` delegate is NOT called when app is in background — iOS shows the notification directly. Recovery via push-triggered `pushResponseArrived` notification only works when app is already in foreground. The primary recovery path must be `appBecameActive` (foreground return), not push arrival.
+
+## Final Recovery Architecture
+
+```
+pollForResponse() — single method, called by all 3 triggers:
+├── If currentSessionId exists → fetchSession(id) directly
+├── If nil → fetchSessions(), take .first (sorted by updatedAt desc)
+├── Compare serverCount > localCount → append recovered message
+├── Set isThinking = false, start typewriter, auto-speak
+├── 12 retries × 5s = ~60s max polling
+└── On all retries exhausted → isThinking = false (stop spinner)
+
+Triggers (all call recoverLostResponse → pollForResponse):
+1. appBecameActive notification (immediate, most reliable)
+2. WS onReconnect callback (fires after successful reconnect)
+3. pushResponseArrived notification (foreground push only)
+```
+
 ## Related
 - Original recovery: `bugs/fix-websocket-lost-response-recovery.md` (Feb 13)
 - Stale isConnected gotcha: `gotchas/gotcha-urlsession-websocket-stale-isconnected.md`

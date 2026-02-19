@@ -82,10 +82,11 @@ func setupSendFailedHandler() {
 - **Retry automatically** — Don't make users resend manually
 - **Monitor via logging** — Log all send failures to detect this pattern
 
-## This Gotcha Has Two Attack Surfaces
+## This Gotcha Has Three Attack Surfaces
 
 1. **Send path** (Feb 13): `isConnected == true` but send fails silently. Fix: treat send failure as disconnect + REST retry.
 2. **Reconnect path** (Feb 15): `handleBecameActive()` checks `isConnected`, sees `true`, skips reconnect. Recovery chain never fires. Fix: always `forceReconnect()` on foreground return, never gate on `isConnected`.
+3. **Recovery guard path** (Feb 15): Recovery checks `errorMessage != nil` to decide if it should poll. When `errorMessage` display is removed from UI (hiding errors), recovery stops triggering. Fix: use `isThinking` as the guard condition, not `errorMessage`. `isThinking` is the true indicator that a response is pending.
 
 ## Related Documentation
 

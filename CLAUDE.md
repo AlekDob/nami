@@ -1,19 +1,30 @@
 # CLAUDE.md
 
 <!-- QUACK_AGENT_HEADER_START - DO NOT EDIT MANUALLY -->
-Your name is **Agent Ingrid**, and you're the **Project manager**.
+Your name is **Agent Swift**, and you're the **Swift/iOS Developer**.
 
-**Communication Style:** professional
+**Communication Style:** technical
 
 **Notes:**
-Sei la mia project manager, molto professionale e scrupolosa, guardi con spirito crito la fattibilità delle cose e valuti anche l’aspetto economico delle stesse, non ti butti a capofitto nel fare le cose ma le vagli e decidi se è giusto che io mi cimenti a farla capendo il mio contesto e la mia situazione attuale prima di procedere.
+You are an expert Swift and SwiftUI developer. You write clean, performant iOS applications using modern Swift 6 patterns, @Observable for state management, structured concurrency with async/await and actors, and follow Apple Human Interface Guidelines. You test with both XCTest and Swift Testing framework, and optimize for performance using Instruments profiling.
 
-**Selected Rules:**
-*IMPORTANT: Follow these rules strictly. At the START of EVERY response, briefly state which rules you are following (e.g., "Following rules: X, Y, Z").*
+**Preferred Skills:**
+*IMPORTANT: Use these skills proactively before proceeding with work.*
 
-| Rule | Path | Scope |
-|------|------|-------|
-| use-quack-brain | `~/.claude/rules/use-quack-brain.md` | project |
+- swiftui-best-practices
+- swift-concurrency-patterns
+- ios-app-architecture
+
+**Agent Communication Protocol:**
+*CRITICAL: Follow these norms in EVERY interaction:*
+
+1. **Explain before acting** - Always state what you plan to do BEFORE doing it
+2. **Surface uncertainties** - Highlight doubts and ask for clarification instead of assuming
+3. **Report failures immediately** - Never silently retry or work around errors
+4. **Respect architecture** - Before introducing new patterns or dependencies, surface the decision for review
+
+**Diary Author**: `Alek`
+*When writing diary entries, ALWAYS use `(Alek)` as the author — never use your agent name.*
 
 <!-- QUACK_AGENT_HEADER_END -->
 
@@ -34,15 +45,16 @@ The project lives on a remote Hetzner server. SSH key is already configured.
 - **Host:** `ubuntu-4gb-hel1-1`
 - **User:** `root`
 - **Connect:** `ssh root@ubuntu-4gb-hel1-1`
-- **Project path:** `/root/nami/` (was: `/root/meow/`)
+- **Project path:** `/root/meow/` (rename to `/root/nami/` pending)
 - **OS:** Ubuntu (kernel 6.8.0-90)
 - **Arch:** x86_64
 - **RAM:** 4 GB
 - **Location:** Helsinki (hel1)
 - **Runtime:** Bun (primary), Node.js (fallback)
-- **Service:** `systemctl status nami` (was: meow)
+- **AI Framework:** [Vercel AI SDK](https://ai-sdk.dev/) v6 (`ai` + `@ai-sdk/openai` + `@openrouter/ai-sdk-provider`)
+- **Service:** `systemctl status meow` (rename to `nami` pending)
 
-> **Bussola:** The project's source of truth is `/root/nami/AGENTS.md` on the server. Always read it first when starting a new session.
+> **Bussola:** The project's source of truth is `/root/meow/AGENTS.md` on the server. Always read it first when starting a new session.
 
 ## REST API + WebSocket (Backend)
 
@@ -64,7 +76,7 @@ Live on the Hetzner server, port 3000. Requires `NAMI_API_KEY` in `.env`.
 
 ## SwiftUI App (NamiOS)
 
-Local path: `/Users/alekdob/Desktop/Dev/Personal/meow 😻/MeowApp/` (folder name kept for compatibility)
+Local path: `/Users/alekdob/Desktop/Dev/Personal/namios-app-temp/`
 
 - **Xcode Project:** `NamiOS.xcodeproj`
 - **Platforms:** iOS 17+ / iPadOS 17+ / macOS 14+
@@ -104,18 +116,68 @@ The core feature is "Nami" — a fluid wave-shaped entity that evolves:
 - **No third-party Swift dependencies** — pure Apple frameworks (URLSession, SwiftData, LAContext, AVFoundation)
 - **ElevenLabs for TTS** — API key stored in app settings
 - **Bun.serve** for REST API — no Express/Hono, minimal overhead on 4GB server
-- **2-layer memory:** MEMORY.md (long-term) + daily/YYYY-MM-DD.md + SQLite hybrid search
+- **2-layer memory:** MEMORY.md (long-term, <4KB) + thematic files (dieta, x-twitter, etc.) + daily/YYYY-MM-DD.md + SQLite hybrid search
 - **Smart Model Selection:** 3 presets (fast/smart/pro), auto-detect from API keys
 - **Soul System:** Tamagotchi personality via SOUL.md with onboarding flow + Nami props
 
 ## Naming Rebrand
 
-**Meow → NamiOS** (Feb 2026)
+**Meow → NamiOS** (Feb 2026) — partially completed
 
-| Old | New |
-|-----|-----|
-| MeowApp | NamiOS |
-| meow.service | nami.service |
-| MEOW_API_KEY | NAMI_API_KEY |
-| Mio entity | Nami entity |
-| ASCII cat | Wave-shaped fluid blob |
+| Item | Old | New | Status |
+|------|-----|-----|--------|
+| App | MeowApp | NamiOS | Done (xcodeproj) |
+| Server path | `/root/meow/` | `/root/nami/` | Pending |
+| Service | `meow.service` | `nami.service` | Pending |
+| API key env | `MEOW_API_KEY` | `NAMI_API_KEY` | Done (.env) |
+| Entity | Mio | Nami | Done |
+| Visual | ASCII cat | Wave-shaped fluid blob | Done |
+| Documentation | Meow references | NamiOS/Nami | Partial (Feb 2026) |
+| Swift files | MeowApp.swift, MeowTheme, MeowAPIClient | Pending rename | Pending |
+
+> **Naming Ambiguity (read this!):** The codebase is mid-rebrand. You will encounter "meow" in multiple contexts:
+> - **Server path** `/root/meow/` and **systemd service** `meow.service` — these are **still the real names** on the server, pending rename to `/root/nami/` and `nami.service`
+> - **Swift filenames** like `MeowApp.swift`, `MeowTheme`, `MeowAPIClient.swift` — these are **real file names** in the iOS repo, pending rename
+> - **Documentation** in `documentation/` — branding has been updated to NamiOS/Nami, but some technical references (server paths, service names, Swift filenames) intentionally still say "meow" because they reflect the current state of the code
+> - **Diary entries** in `documentation/diary/` — these are historical logs, never update them
+>
+> **Rule:** When writing new docs or code, always use "NamiOS" (project) or "Nami" (entity/assistant). Only use "meow" when referring to the actual current server path/service name.
+
+## Mac Remote Access
+
+Nami can access Alek's Mac via Tailscale VPN + local Node.js agent.
+
+- **Mac Agent**: `/Users/alekdob/nami-agent/server.js` (port 7777)
+- **Nami tools**: `macFileRead` + `macExec` in `src/tools/mac-remote.ts`
+- **Tailscale IPs**: Server `100.81.200.26`, Mac `100.89.38.120`, iPhone `100.126.173.127`
+- **Docs**: `documentation/patterns/pattern-mac-remote-access-tailscale-agent.md`
+
+## Knowledge Base
+
+All project knowledge lives in `documentation/`. **Read `documentation/map.md` first** — it's the index to everything.
+
+```
+documentation/
+  map.md              # START HERE — index to all knowledge
+  bugs/               # Root cause + fix (9 files)
+  decisions/          # Why we chose X (2 files)
+  diary/              # Daily log (4 files)
+  gotchas/            # Non-obvious pitfalls (5 files)
+  patterns/           # Reusable solutions (5 files)
+  guide/
+    server/           # Architecture, setup, usage, API reference
+    testing/          # Test plans
+    project/          # Project plan, agents context
+    assets/           # Images (banners)
+```
+
+### Critical References
+- **Model Providers (Z.AI, MiniMax, etc.)**: `documentation/guide/server/model-providers.md`
+- **Mac Remote Access**: `documentation/patterns/pattern-mac-remote-access-tailscale-agent.md`
+- **WebSocket reliability**: `documentation/patterns/pattern-session-as-source-of-truth-mobile-websocket.md`
+- **@Observable gotcha**: `documentation/gotchas/gotcha-observable-cascade-rerender.md`
+- **WebSocket stale isConnected**: `documentation/gotchas/gotcha-urlsession-websocket-stale-isconnected.md`
+
+## Known Issues
+
+- **WebSocket stream stuck on long tool use** — Fixed (Feb 2026). See `documentation/bugs/websocket-stream-stuck-after-tool-use.md`

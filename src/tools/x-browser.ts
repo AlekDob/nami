@@ -1,121 +1,99 @@
 import { tool } from 'ai';
 import { z } from 'zod';
-import { chromium, type BrowserContext, type Page } from 'playwright';
+import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
 import { resolve } from 'path';
+import { existsSync } from 'fs';
 
-const BROWSER_DATA_DIR = resolve(
+// Brain: x-storage-state-login-pattern
+const STORAGE_STATE_PATH = resolve(
   process.env.DATA_DIR || './data',
   'browser',
-  'x-session',
+  'x-storage-state.json',
 );
 
+const USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ' +
+  'AppleWebKit/537.36 (KHTML, like Gecko) ' +
+  'Chrome/131.0.0.0 Safari/537.36';
+
+let browser: Browser | null = null;
 let context: BrowserContext | null = null;
 let page: Page | null = null;
 
 async function ensureLoggedIn(): Promise<Page> {
-  if (page && !page.isClosed()) {
-    return page;
+  if (page && !page.isClosed()) return page;
+
+  if (!existsSync(STORAGE_STATE_PATH)) {
+    throw new Error(
+      'X login required. Run: bun run src/tools/x-login.ts ' +
+      'on a machine with a display, then copy ' +
+      'data/browser/x-storage-state.json to the server.',
+    );
   }
 
-  const browser = await chromium.launchPersistentContext(
-    BROWSER_DATA_DIR,
-    {
-      headless: true,
-      viewport: { width: 1280, height: 900 },
-      userAgent:
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ' +
-        'AppleWebKit/537.36 (KHTML, like Gecko) ' +
-        'Chrome/131.0.0.0 Safari/537.36',
-      locale: 'en-US',
-    },
-  );
+  browser = await chromium.launch({ headless: true });
+  context = await browser.newContext({
+    storageState: STORAGE_STATE_PATH,
+    viewport: { width: 1280, height: 900 },
+    userAgent: USER_AGENT,
+    locale: 'en-US',
+  });
+  page = await context.newPage();
 
-  context = browser;
-  page = browser.pages()[0] || (await browser.newPage());
-
-  await page.goto('https://x.com/home', { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(2000);
+  await page.goto('https://x.com/home', {
+    waitUntil: 'domcontentloaded',
+  });
+  await page.waitForTimeout(3000);
 
   const url = page.url();
-  const needsLogin = url.includes('/login') || url.includes('/i/flow/login');
-
-  if (needsLogin) {
-    const username = process.env.X_USERNAME;
-    const password = process.env.X_PASSWORD;
-
-    if (!username || !password) {
-      throw new Error(
-        'X_USERNAME and X_PASSWORD required for first login. ' +
-        'Set them in .env and restart.',
-      );
-    }
-
-    await doLogin(page, username, password);
+  if (url.includes('/login') || url.includes('/i/flow')) {
+    await closeBrowser();
+    throw new Error(
+      'X cookies expired. Re-run: bun run src/tools/x-login.ts',
+    );
   }
 
   return page;
-}
-
-async function doLogin(
-  p: Page,
-  username: string,
-  password: string,
-): Promise<void> {
-  await p.goto('https://x.com/i/flow/login', {
-    waitUntil: 'domcontentloaded',
-  });
-  await p.waitForTimeout(2000);
-
-  // Step 1: username
-  const usernameInput = p.locator('input[autocomplete="username"]');
-  await usernameInput.waitFor({ timeout: 10000 });
-  await usernameInput.fill(username);
-  await p.locator('[role="button"]:has-text("Next")').click();
-  await p.waitForTimeout(2000);
-
-  // Step 1b: sometimes X asks for email/phone verification
-  const unusual = p.locator('input[data-testid="ocfEnterTextTextInput"]');
-  if (await unusual.isVisible({ timeout: 3000 }).catch(() => false)) {
-    // X is asking for additional verification (email or phone)
-    const email = process.env.X_EMAIL || username;
-    await unusual.fill(email);
-    await p.locator('[data-testid="ocfEnterTextNextButton"]').click();
-    await p.waitForTimeout(2000);
-  }
-
-  // Step 2: password
-  const passwordInput = p.locator('input[type="password"]');
-  await passwordInput.waitFor({ timeout: 10000 });
-  await passwordInput.fill(password);
-  await p.locator('[data-testid="LoginForm_Login_Button"]').click();
-  await p.waitForTimeout(3000);
-
-  // Verify login succeeded
-  const afterUrl = p.url();
-  if (afterUrl.includes('/login') || afterUrl.includes('/i/flow')) {
-    throw new Error(
-      'Login failed — X may require CAPTCHA or 2FA. ' +
-      'Try logging in manually once in a non-headless browser.',
-    );
-  }
 }
 
 interface TweetData {
   text: string;
   author: string;
   handle: string;
+  avatar: string;
   time: string;
   likes: string;
   retweets: string;
   replies: string;
   url: string;
+  isVerified: boolean;
+  images: string[];
 }
 
 async function scrapeTweets(p: Page): Promise<TweetData[]> {
-  await p.waitForTimeout(2000);
+  // Wait for tweets to render (X is an SPA, needs JS execution)
+  try {
+    await p.waitForSelector('article[data-testid="tweet"]', {
+      timeout: 10_000,
+    });
+  } catch {
+    // No tweets found — log debug info
+    const debugUrl = p.url();
+    const debugTitle = await p.title();
+    const debugHtml = await p.evaluate(
+      () => document.body?.innerText?.slice(0, 500) || '',
+    );
+    console.error(
+      `[x-browser] No tweets found. URL: ${debugUrl}, ` +
+      `Title: ${debugTitle}, Body: ${debugHtml.slice(0, 200)}`,
+    );
+    return [];
+  }
 
   return p.evaluate(() => {
-    const articles = document.querySelectorAll('article[data-testid="tweet"]');
+    const articles = document.querySelectorAll(
+      'article[data-testid="tweet"]',
+    );
     const results: TweetData[] = [];
 
     articles.forEach((article) => {
@@ -145,6 +123,21 @@ async function scrapeTweets(p: Page): Promise<TweetData[]> {
       const timeEl = article.querySelector('time');
       const time = timeEl?.getAttribute('datetime') || '';
 
+      const avatar =
+        article
+          .querySelector('div[data-testid="Tweet-User-Avatar"] img')
+          ?.getAttribute('src') || '';
+
+      const isVerified = !!article.querySelector(
+        'svg[aria-label*="erified"]',
+      );
+
+      const images = Array.from(
+        article.querySelectorAll('[data-testid="tweetPhoto"] img'),
+      )
+        .map((img) => img.getAttribute('src') || '')
+        .filter(Boolean);
+
       const likes =
         article
           .querySelector('[data-testid="like"]')
@@ -160,14 +153,9 @@ async function scrapeTweets(p: Page): Promise<TweetData[]> {
 
       if (text) {
         results.push({
-          text,
-          author,
-          handle,
-          time,
-          likes,
-          retweets,
-          replies,
-          url: tweetUrl,
+          text, author, handle, avatar, time,
+          likes, retweets, replies,
+          url: tweetUrl, isVerified, images,
         });
       }
     });
@@ -180,7 +168,7 @@ async function scrapeTweets(p: Page): Promise<TweetData[]> {
 
 export const xBrowseTimeline = tool({
   description:
-    'Browse X/Twitter home timeline via browser (no API limits). ' +
+    'Browse X/Twitter home timeline via browser. ' +
     'Returns recent tweets from the feed.',
   inputSchema: z.object({
     scrollCount: z
@@ -191,7 +179,9 @@ export const xBrowseTimeline = tool({
   execute: async ({ scrollCount }) => {
     try {
       const p = await ensureLoggedIn();
-      await p.goto('https://x.com/home', { waitUntil: 'domcontentloaded' });
+      await p.goto('https://x.com/home', {
+        waitUntil: 'domcontentloaded',
+      });
       await p.waitForTimeout(3000);
 
       const scrolls = Math.min(Math.max(scrollCount, 1), 5);
@@ -225,19 +215,18 @@ export const xBrowseProfile = tool({
       });
       await p.waitForTimeout(3000);
 
-      // Scroll once for more tweets
       await p.evaluate(() => window.scrollBy(0, window.innerHeight));
       await p.waitForTimeout(1500);
 
       const tweets = await scrapeTweets(p);
 
-      // Get follower count
       const bio = await p.evaluate(() => {
         const desc = document.querySelector(
           '[data-testid="UserDescription"]',
         );
         const followers = document.querySelector(
-          'a[href$="/verified_followers"] span, a[href$="/followers"] span',
+          'a[href$="/verified_followers"] span, ' +
+          'a[href$="/followers"] span',
         );
         return {
           description: desc?.textContent?.trim() || '',
@@ -246,12 +235,9 @@ export const xBrowseProfile = tool({
       });
 
       return {
-        handle: clean,
-        bio: bio.description,
-        followers: bio.followers,
-        tweets,
-        count: tweets.length,
-        source: 'browser',
+        handle: clean, bio: bio.description,
+        followers: bio.followers, tweets,
+        count: tweets.length, source: 'browser',
       };
     } catch (err) {
       return { error: err instanceof Error ? err.message : String(err) };
@@ -261,8 +247,7 @@ export const xBrowseProfile = tool({
 
 export const xBrowseSearch = tool({
   description:
-    'Search X/Twitter via browser (no API limits). ' +
-    'Returns tweets matching the query.',
+    'Search X/Twitter via browser. Returns tweets matching the query.',
   inputSchema: z.object({
     query: z.string().describe('Search query'),
     tab: z
@@ -274,7 +259,8 @@ export const xBrowseSearch = tool({
     try {
       const p = await ensureLoggedIn();
       const encoded = encodeURIComponent(query);
-      const tabParam = tab === 'top' ? '' : `&f=${tab === 'latest' ? 'live' : tab}`;
+      const tabParam =
+        tab === 'top' ? '' : `&f=${tab === 'latest' ? 'live' : tab}`;
       await p.goto(
         `https://x.com/search?q=${encoded}${tabParam}`,
         { waitUntil: 'domcontentloaded' },
@@ -321,9 +307,7 @@ export const xBrowseNotifications = tool({
       });
 
       return {
-        notifications,
-        count: notifications.length,
-        source: 'browser',
+        notifications, count: notifications.length, source: 'browser',
       };
     } catch (err) {
       return { error: err instanceof Error ? err.message : String(err) };
@@ -333,8 +317,7 @@ export const xBrowseNotifications = tool({
 
 export const xBrowsePost = tool({
   description:
-    'Post a tweet via browser (no API limits). ' +
-    'Text only, no image support.',
+    'Post a tweet via browser. Text only, no image support.',
   inputSchema: z.object({
     text: z.string().max(280).describe('Tweet text'),
   }),
@@ -363,7 +346,7 @@ export const xBrowsePost = tool({
 
 export const xBrowseReply = tool({
   description:
-    'Reply to a tweet via browser (no API limits). ' +
+    'Reply to a tweet via browser. ' +
     'Navigate to the tweet URL and post a reply.',
   inputSchema: z.object({
     tweetUrl: z.string().url().describe('Full tweet URL'),
@@ -396,5 +379,9 @@ export async function closeBrowser(): Promise<void> {
     await context.close();
     context = null;
     page = null;
+  }
+  if (browser) {
+    await browser.close();
+    browser = null;
   }
 }
