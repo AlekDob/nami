@@ -30,7 +30,7 @@ export const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
   maxResults: 10,
   chunkSize: 1200,
   chunkOverlap: 200,
-  embeddingProvider: process.env.OPENAI_API_KEY ? 'openai' : 'none',
+  embeddingProvider: process.env.MEMORY_EMBEDDINGS === 'true' ? 'openai' : 'none',
   embeddingModel: 'text-embedding-3-small',
 };
 
