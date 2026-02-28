@@ -2,7 +2,7 @@ import { Database } from 'bun:sqlite';
 import * as sqliteVec from 'sqlite-vec';
 import { createHash } from 'crypto';
 import { resolve } from 'path';
-import type { Chunk, MemoryConfig, SearchResult } from './types.js';
+import type { Chunk, KnowledgeEntry, KnowledgeResult, MemoryConfig, SearchResult } from './types.js';
 
 type EmbedFn = (text: string) => Promise<number[]>;
 
@@ -42,6 +42,32 @@ export class MemoryIndexer {
     this.db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts
       USING fts5(text, content=chunks, content_rowid=rowid);
+    `);
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS knowledge (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        source_url TEXT,
+        source_type TEXT NOT NULL DEFAULT 'note',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS tags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS knowledge_tags (
+        knowledge_id TEXT NOT NULL,
+        tag_id INTEGER NOT NULL,
+        PRIMARY KEY (knowledge_id, tag_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_kt_tag ON knowledge_tags(tag_id);
+    `);
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_fts
+      USING fts5(title, content, summary, content=knowledge, content_rowid=rowid);
     `);
   }
 
@@ -126,7 +152,24 @@ export class MemoryIndexer {
       ? await this.searchVector(query)
       : [];
 
-    return this.mergeResults(keywordResults, vectorResults);
+    const chunkResults = this.mergeResults(keywordResults, vectorResults);
+
+    // Also search knowledge entries and merge into unified results
+    const knowledgeResults = this.searchKnowledgeKeyword(query, this.config.maxResults);
+    const knowledgeAsSearch: SearchResult[] = knowledgeResults.map(k => ({
+      path: `knowledge/${k.id}`,
+      startLine: 0,
+      endLine: 0,
+      score: k.score,
+      snippet: `**${k.title}** [${k.tags.join(', ')}]: ${k.summary}`,
+      source: 'knowledge' as const,
+      knowledgeId: k.id,
+      tags: k.tags,
+    }));
+
+    return [...chunkResults, ...knowledgeAsSearch]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, this.config.maxResults);
   }
 
   private searchKeyword(query: string): Array<SearchResult & { _rawScore: number }> {
@@ -284,6 +327,162 @@ export class MemoryIndexer {
       score: 1.0,
       source: r.path.includes('daily/') ? 'daily' as const : 'memory' as const,
     }));
+  }
+
+  // ── Knowledge CRUD ──
+
+  async saveKnowledge(entry: Omit<KnowledgeEntry, 'createdAt' | 'updatedAt'>): Promise<string> {
+    const now = new Date().toISOString();
+    this.db.prepare(`
+      INSERT INTO knowledge (id, title, content, summary, source_url, source_type, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(entry.id, entry.title, entry.content, entry.summary, entry.sourceUrl ?? null, entry.sourceType, now, now);
+
+    // FTS index
+    const row = this.db.query(`SELECT rowid FROM knowledge WHERE id = ?`).get(entry.id) as { rowid: number } | null;
+    if (row) {
+      this.db.prepare(`INSERT INTO knowledge_fts (rowid, title, content, summary) VALUES (?, ?, ?, ?)`)
+        .run(row.rowid, entry.title, entry.content, entry.summary);
+    }
+
+    // Tags
+    if (entry.tags.length > 0) {
+      this.addTags(entry.id, entry.tags);
+    }
+
+    // Vector embedding on title + summary
+    if (this.embedFn && this.dimensions) {
+      await this.indexKnowledgeVector(entry.id, `${entry.title} ${entry.summary}`);
+    }
+
+    return entry.id;
+  }
+
+  getKnowledge(id: string): KnowledgeEntry | null {
+    const row = this.db.query(`SELECT * FROM knowledge WHERE id = ?`).get(id) as Record<string, string> | null;
+    if (!row) return null;
+    return {
+      id: row.id,
+      title: row.title,
+      content: row.content,
+      summary: row.summary,
+      sourceUrl: row.source_url || undefined,
+      sourceType: row.source_type as KnowledgeEntry['sourceType'],
+      tags: this.getTagsForKnowledge(id),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  searchKnowledge(query: string, tags?: string[], limit = 10): KnowledgeResult[] {
+    let results = this.searchKnowledgeKeyword(query, limit * 2);
+
+    // Tag filter
+    if (tags && tags.length > 0) {
+      const tagSet = new Set(tags);
+      results = results.filter(r => r.tags.some(t => tagSet.has(t)));
+    }
+
+    return results.slice(0, limit);
+  }
+
+  addTags(knowledgeId: string, tags: string[]): void {
+    for (const tag of tags) {
+      const name = tag.toLowerCase().trim();
+      if (!name) continue;
+      this.db.prepare(`INSERT OR IGNORE INTO tags (name) VALUES (?)`).run(name);
+      const tagRow = this.db.query(`SELECT id FROM tags WHERE name = ?`).get(name) as { id: number } | null;
+      if (tagRow) {
+        this.db.prepare(`INSERT OR IGNORE INTO knowledge_tags (knowledge_id, tag_id) VALUES (?, ?)`)
+          .run(knowledgeId, tagRow.id);
+      }
+    }
+  }
+
+  removeTags(knowledgeId: string, tags: string[]): void {
+    for (const tag of tags) {
+      const name = tag.toLowerCase().trim();
+      const tagRow = this.db.query(`SELECT id FROM tags WHERE name = ?`).get(name) as { id: number } | null;
+      if (tagRow) {
+        this.db.prepare(`DELETE FROM knowledge_tags WHERE knowledge_id = ? AND tag_id = ?`)
+          .run(knowledgeId, tagRow.id);
+      }
+    }
+  }
+
+  listTags(): string[] {
+    const rows = this.db.query(`
+      SELECT t.name, COUNT(kt.knowledge_id) as cnt
+      FROM tags t JOIN knowledge_tags kt ON t.id = kt.tag_id
+      GROUP BY t.id ORDER BY cnt DESC
+    `).all() as Array<{ name: string }>;
+    return rows.map(r => r.name);
+  }
+
+  recentKnowledge(limit: number): KnowledgeResult[] {
+    const rows = this.db.query(`
+      SELECT id, title, summary, source_type, source_url, created_at
+      FROM knowledge ORDER BY created_at DESC LIMIT ?
+    `).all(limit) as Array<Record<string, string>>;
+    return rows.map(r => ({
+      id: r.id,
+      title: r.title,
+      summary: r.summary,
+      tags: this.getTagsForKnowledge(r.id),
+      score: 1.0,
+      sourceType: r.source_type as KnowledgeEntry['sourceType'],
+      sourceUrl: r.source_url || undefined,
+      createdAt: r.created_at,
+    }));
+  }
+
+  private getTagsForKnowledge(knowledgeId: string): string[] {
+    const rows = this.db.query(`
+      SELECT t.name FROM tags t
+      JOIN knowledge_tags kt ON t.id = kt.tag_id
+      WHERE kt.knowledge_id = ?
+    `).all(knowledgeId) as Array<{ name: string }>;
+    return rows.map(r => r.name);
+  }
+
+  private searchKnowledgeKeyword(query: string, limit: number): KnowledgeResult[] {
+    const escaped = query.replace(/"/g, '""');
+    try {
+      const rows = this.db.query(`
+        SELECT k.id, k.title, k.summary, k.source_type, k.source_url, k.created_at,
+               bm25(knowledge_fts) as score
+        FROM knowledge_fts f
+        JOIN knowledge k ON k.rowid = f.rowid
+        WHERE knowledge_fts MATCH ?
+        ORDER BY score
+        LIMIT ?
+      `).all(`"${escaped}"`, limit) as Array<Record<string, string | number>>;
+
+      return rows.map(r => ({
+        id: r.id as string,
+        title: r.title as string,
+        summary: r.summary as string,
+        tags: this.getTagsForKnowledge(r.id as string),
+        score: Math.abs(r.score as number),
+        sourceType: (r.source_type as string) as KnowledgeEntry['sourceType'],
+        sourceUrl: (r.source_url as string) || undefined,
+        createdAt: r.created_at as string,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  private async indexKnowledgeVector(id: string, text: string): Promise<void> {
+    if (!this.embedFn || !this.dimensions) return;
+    const embedding = await this.embedFn(text);
+    const vec = new Float32Array(embedding);
+    try {
+      this.db.prepare(`INSERT OR REPLACE INTO chunks_vec (id, embedding) VALUES (?, ?)`)
+        .run(`knowledge:${id}`, vec);
+    } catch {
+      // vec table may not exist
+    }
   }
 
   close(): void {

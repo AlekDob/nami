@@ -2,8 +2,9 @@ import { resolve } from 'path';
 import { readFile, writeFile, mkdir, readdir } from 'fs/promises';
 import { MemoryIndexer } from './indexer.js';
 import { createEmbeddingProvider } from './embeddings.js';
-import type { MemoryConfig, SearchResult } from './types.js';
+import type { KnowledgeEntry, KnowledgeResult, MemoryConfig, SearchResult } from './types.js';
 import { DEFAULT_MEMORY_CONFIG } from './types.js';
+import { randomUUID } from 'crypto';
 
 const MAX_PROMPT_BYTES = 4096;
 
@@ -56,6 +57,14 @@ export class MemoryStore {
     if (yDaily) {
       const tail = this.tailEntries(yDaily, 5);
       parts.push(`## Yesterday's Notes (${yesterday})\n${tail}`);
+    }
+
+    const recent = this.indexer.recentKnowledge(5);
+    if (recent.length > 0) {
+      const entries = recent.map(k =>
+        `- **${k.title}** [${k.tags.join(', ')}]: ${k.summary}`,
+      ).join('\n');
+      parts.push(`## Recent Knowledge\n${entries}`);
     }
 
     return parts.join('\n\n');
@@ -195,6 +204,31 @@ export class MemoryStore {
   private async safeWrite(path: string, content: string): Promise<void> {
     await mkdir(resolve(path, '..'), { recursive: true });
     await writeFile(path, content, 'utf-8');
+  }
+
+  // ── Knowledge (Second Brain) ──
+
+  async saveKnowledge(entry: Omit<KnowledgeEntry, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+    const id = randomUUID();
+    await this.indexer.saveKnowledge({ ...entry, id });
+    return id;
+  }
+
+  async searchKnowledge(query: string, tags?: string[], limit?: number): Promise<KnowledgeResult[]> {
+    return this.indexer.searchKnowledge(query, tags, limit);
+  }
+
+  async tagKnowledge(id: string, addTags: string[], removeTags: string[]): Promise<void> {
+    if (addTags.length) this.indexer.addTags(id, addTags);
+    if (removeTags.length) this.indexer.removeTags(id, removeTags);
+  }
+
+  getKnowledge(id: string): KnowledgeEntry | null {
+    return this.indexer.getKnowledge(id);
+  }
+
+  listTags(): string[] {
+    return this.indexer.listTags();
   }
 
   close(): void {

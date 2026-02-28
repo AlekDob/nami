@@ -12,6 +12,9 @@ import {
 } from './x-browser.js';
 import { createMemorySearch } from './memory-search.js';
 import { createMemoryGet } from './memory-get.js';
+import { createMemorySave } from './memory-save.js';
+import { createMemoryRecall } from './memory-recall.js';
+import { createMemoryTag } from './memory-tag.js';
 import {
   createScheduleTask,
   createListTasks,
@@ -26,6 +29,17 @@ import { generateShoppingList } from './shopping-list.js';
 import { macFileRead, macExec } from './mac-remote.js';
 import { createAppleReminder } from './apple-reminder.js';
 import { createLocalCommand, createAICommand } from './local-command.js';
+import {
+  quackStatus,
+  quackAgents,
+  quackExecute,
+  quackSessions,
+  quackSessionMessages,
+  quackSessionSend,
+  quackJobs,
+  quackJobFire,
+  quackJobToggle,
+} from './quack-remote.js';
 import {
   redditFeed,
   redditSubreddit,
@@ -71,6 +85,9 @@ export function buildTools(memory: MemoryStore, scheduler?: Scheduler) {
     ...coreTools,
     memorySearch: createMemorySearch(memory),
     memoryGet: createMemoryGet(memory),
+    memorySave: createMemorySave(memory),
+    memoryRecall: createMemoryRecall(memory),
+    memoryTag: createMemoryTag(memory),
   };
 
   if (scheduler) {
@@ -83,6 +100,16 @@ export function buildTools(memory: MemoryStore, scheduler?: Scheduler) {
     tools.macFileRead = macFileRead;
     tools.macExec = macExec;
     tools.createAppleReminder = createAppleReminder;
+    // Quack Remote — control Quack agents from Nami
+    tools.quackStatus = quackStatus;
+    tools.quackAgents = quackAgents;
+    tools.quackExecute = quackExecute;
+    tools.quackSessions = quackSessions;
+    tools.quackSessionMessages = quackSessionMessages;
+    tools.quackSessionSend = quackSessionSend;
+    tools.quackJobs = quackJobs;
+    tools.quackJobFire = quackJobFire;
+    tools.quackJobToggle = quackJobToggle;
   }
 
   // Command creation tools (always available)

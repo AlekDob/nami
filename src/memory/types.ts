@@ -30,7 +30,7 @@ export const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
   maxResults: 10,
   chunkSize: 1200,
   chunkOverlap: 200,
-  embeddingProvider: 'none',
+  embeddingProvider: process.env.OPENAI_API_KEY ? 'openai' : 'none',
   embeddingModel: 'text-embedding-3-small',
 };
 
@@ -40,7 +40,9 @@ export interface SearchResult {
   endLine: number;
   score: number;
   snippet: string;
-  source: 'memory' | 'daily';
+  source: 'memory' | 'daily' | 'knowledge';
+  knowledgeId?: string;
+  tags?: string[];
 }
 
 export interface Chunk {
@@ -50,4 +52,29 @@ export interface Chunk {
   endLine: number;
   text: string;
   hash: string;
+}
+
+export type SourceType = 'note' | 'link' | 'concept' | 'quote';
+
+export interface KnowledgeEntry {
+  id: string;
+  title: string;
+  content: string;
+  summary: string;
+  sourceUrl?: string;
+  sourceType: SourceType;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KnowledgeResult {
+  id: string;
+  title: string;
+  summary: string;
+  tags: string[];
+  score: number;
+  sourceType: SourceType;
+  sourceUrl?: string;
+  createdAt: string;
 }
