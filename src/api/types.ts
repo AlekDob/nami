@@ -66,6 +66,7 @@ export type WsClientMessage =
   | { type: 'ping' };
 
 export type WsServerMessage =
+  | { type: 'connected' }
   | { type: 'done'; text: string; stats: ChatResponse['stats']; sessionId?: string }
   | { type: 'error'; error: string }
   | { type: 'pong' }

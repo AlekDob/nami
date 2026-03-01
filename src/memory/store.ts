@@ -210,8 +210,32 @@ export class MemoryStore {
 
   async saveKnowledge(entry: Omit<KnowledgeEntry, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
     const id = randomUUID();
-    await this.indexer.saveKnowledge({ ...entry, id });
+    // Fetch OG image for link entries with a URL
+    let ogImage = entry.ogImage;
+    if (!ogImage && entry.sourceUrl && entry.sourceType === 'link') {
+      ogImage = await this.fetchOgImage(entry.sourceUrl);
+    }
+    await this.indexer.saveKnowledge({ ...entry, ogImage, id });
     return id;
+  }
+
+  private async fetchOgImage(url: string): Promise<string | undefined> {
+    try {
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'NamiBot/1.0' },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) return undefined;
+      const html = await res.text();
+      const match = html.match(
+        /<meta\s+(?:property|name)=["']og:image["']\s+content=["']([^"']+)["']/i,
+      ) ?? html.match(
+        /content=["']([^"']+)["']\s+(?:property|name)=["']og:image["']/i,
+      );
+      return match?.[1] || undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   async searchKnowledge(query: string, tags?: string[], limit?: number): Promise<KnowledgeResult[]> {
@@ -229,6 +253,30 @@ export class MemoryStore {
 
   listTags(): string[] {
     return this.indexer.listTags();
+  }
+
+  listTagsWithCount(): Array<{ name: string; count: number }> {
+    return this.indexer.listTagsWithCount();
+  }
+
+  listKnowledge(query?: string, tags?: string[], limit?: number, offset?: number) {
+    return this.indexer.listKnowledge(query, tags, limit, offset);
+  }
+
+  getGraphData(limit?: number) {
+    return this.indexer.getGraphData(limit);
+  }
+
+  renameTag(oldName: string, newName: string): boolean {
+    return this.indexer.renameTag(oldName, newName);
+  }
+
+  mergeTags(keepName: string, mergeName: string): boolean {
+    return this.indexer.mergeTags(keepName, mergeName);
+  }
+
+  deleteTag(name: string): boolean {
+    return this.indexer.deleteTag(name);
   }
 
   close(): void {

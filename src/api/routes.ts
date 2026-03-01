@@ -15,6 +15,7 @@ import { resolve } from 'path';
 import { loadCommands, saveCommands } from '../tools/local-command.js';
 import type { StoredCommand } from '../tools/local-command.js';
 
+import { knowledgeRoutes } from './knowledge-routes.js';
 import { registerDevice, unregisterDevice } from '../channels/apns.js';
 import { listCreations, getCreation, getCreationPreview, deleteCreation } from './creations.js';
 import { getProviderKeys, setProviderKey, deleteProviderKey, getMcpServers } from './env-writer.js';
@@ -472,6 +473,8 @@ const routes: Route[] = [
   route('GET', '/api/commands', getCommands),
   route('POST', '/api/commands', postCommandCreate),
   route('DELETE', '/api/commands/:id', deleteCommand),
+  // Knowledge (Second Brain) routes — handlers take Agent directly
+  ...knowledgeRoutes.map(kr => route(kr.method, kr.path, (req, ctx, params) => kr.handler(req, ctx.agent, params))),
 ];
 
 export function handleRoute(

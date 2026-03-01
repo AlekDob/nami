@@ -35,6 +35,7 @@ export function broadcastCreation(
   name: string,
   creationType: string,
 ): void {
+  console.log(`[WS] broadcastCreation: ${creationType} "${name}" to ${connections.size} clients`);
   const msg: WsServerMessage = { type: "creation", id, name, creationType };
   const payload = JSON.stringify(msg);
   for (const ws of connections.values()) {
@@ -127,6 +128,7 @@ export const wsHandlers = {
   open(ws: ServerWebSocket<WsData>): void {
     connections.set(ws.data.id, ws);
     console.log(`[WS] Client connected: ${ws.data.id} (total: ${connections.size})`);
+    send(ws, { type: 'connected' });
   },
 
   message(ws: ServerWebSocket<WsData>, raw: string | Buffer): void {

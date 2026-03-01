@@ -2,6 +2,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import type { MemoryStore } from '../memory/store.js';
 import type { SourceType } from '../memory/types.js';
+import { broadcastCreation } from '../api/websocket.js';
 
 export function createMemorySave(memory: MemoryStore) {
   return tool({
@@ -33,6 +34,7 @@ export function createMemorySave(memory: MemoryStore) {
         sourceType: type,
       });
 
+      broadcastCreation(id, title, 'knowledge');
       return { success: true, id, title, tags: tagList, sourceType: type };
     },
   });

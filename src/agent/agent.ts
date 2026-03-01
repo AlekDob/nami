@@ -18,6 +18,9 @@ import {
   type Preset,
 } from '../config/models.js';
 
+import { readFile, writeFile, mkdir } from 'fs/promises';
+import { join } from 'path';
+
 const DEFAULT_USER_ID = 'default';
 const DEFAULT_DATA_DIR = './data';
 const MAX_STEPS = 10;
@@ -41,6 +44,7 @@ export class Agent {
   private keys = detectApiKeys();
   private currentModelId: string | null = null;
   private isFirstRun = false;
+  private dataDir: string;
   lastRunStats: RunStats | null = null;
   onToolUse: ToolEventCallback | null = null;
 
@@ -49,6 +53,7 @@ export class Agent {
     dataDir: string = DEFAULT_DATA_DIR,
     userId: string = DEFAULT_USER_ID,
   ) {
+    this.dataDir = dataDir;
     this.memory = new MemoryStore(dataDir, userId);
     this.skills = new SkillLoader(dataDir);
     this.soul = new SoulLoader(dataDir);
@@ -70,6 +75,16 @@ export class Agent {
     this.isFirstRun = !(await this.soul.exists());
     if (this.isFirstRun) {
       await this.soul.createDefault();
+    }
+
+    // Restore saved model preference (persisted across restarts)
+    const saved = await this.loadModelPreference();
+    if (saved) {
+      const found = findModel(saved);
+      if (found) {
+        this.currentModelId = found.id;
+        return;
+      }
     }
 
     const preset = (process.env.MODEL_PRESET as Preset) || 'smart';
@@ -203,12 +218,14 @@ export class Agent {
     const found = findModel(nameOrId);
     if (found) {
       this.currentModelId = found.id;
+      this.saveModelPreference(found.id);
       const tools = found.toolUse
         ? '(tools: yes)'
         : '(tools: no)';
       return 'Switched to ' + found.label + ' ' + tools;
     }
     this.currentModelId = nameOrId;
+    this.saveModelPreference(nameOrId);
     return 'Switched to ' + nameOrId + ' (custom)';
   }
 
@@ -238,6 +255,32 @@ export class Agent {
 
   listModels(): string {
     return formatModelList(this.keys, this.currentModelId || undefined);
+  }
+
+  private get modelPrefPath(): string {
+    return join(this.dataDir, 'model-preference.json');
+  }
+
+  private async loadModelPreference(): Promise<string | null> {
+    try {
+      const raw = await readFile(this.modelPrefPath, 'utf-8');
+      const data = JSON.parse(raw) as { modelId?: string };
+      return data.modelId || null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async saveModelPreference(modelId: string): Promise<void> {
+    try {
+      await mkdir(this.dataDir, { recursive: true });
+      await writeFile(
+        this.modelPrefPath,
+        JSON.stringify({ modelId }, null, 2),
+      );
+    } catch (err) {
+      console.error('[Agent] Failed to save model preference:', err);
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
