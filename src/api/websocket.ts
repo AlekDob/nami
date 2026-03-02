@@ -77,25 +77,25 @@ async function handleChat(
   }));
 
   console.log(`[WS] Chat started for ${ws.data.id}, messages: ${messages.length}`);
-  // Stream tool usage events to the client
-  const previousCallback = agentRef.onToolUse;
-  agentRef.onToolUse = (toolName: string) => {
-    send(ws, { type: 'tool_use', tool: toolName });
-    if (previousCallback) previousCallback(toolName);
+
+  // Create session BEFORE run so tool_use events can carry sessionId
+  let sessionId = clientSessionId;
+  if (sessionsRef && !sessionId) {
+    const s = await sessionsRef.createSession('api');
+    sessionId = s.id;
+  }
+
+  // Per-run callback — no global mutation on agent
+  const toolCallback = (toolName: string) => {
+    send(ws, { type: 'tool_use', tool: toolName, sessionId });
   };
 
   try {
-    const text = await agentRef.run(msgs);
-    agentRef.onToolUse = previousCallback;
+    const text = await agentRef.run(msgs, toolCallback);
     const stats = agentRef.lastRunStats;
 
-    // Persist to session
-    let sessionId = clientSessionId;
-    if (sessionsRef) {
-      if (!sessionId) {
-        const s = await sessionsRef.createSession('api');
-        sessionId = s.id;
-      }
+    // Persist messages to session
+    if (sessionsRef && sessionId) {
       const lastUser = messages[messages.length - 1];
       if (lastUser) {
         const userText = typeof lastUser.content === 'string'

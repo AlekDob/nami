@@ -350,6 +350,7 @@ async function main() {
         soul: agent.getSoulLoader(),
         port: apiPort,
         dataDir,
+        sessions,
       });
     }
   }

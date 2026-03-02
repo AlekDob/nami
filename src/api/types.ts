@@ -71,7 +71,7 @@ export type WsServerMessage =
   | { type: 'error'; error: string }
   | { type: 'pong' }
   | { type: 'notification'; title: string; body: string }
-  | { type: "tool_use"; tool: string }
+  | { type: "tool_use"; tool: string; sessionId?: string }
   | { type: "creation"; id: string; name: string; creationType: string }
   | { type: "shopping_list"; listName: string; items: ShoppingListItem[] };
 

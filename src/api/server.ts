@@ -12,13 +12,14 @@ export interface ApiServerConfig {
   soul: SoulLoader;
   port: number;
   dataDir?: string;
+  sessions?: SessionStore;
 }
 
 export function startApiServer(config: ApiServerConfig): void {
-  const { agent, scheduler, soul, port, dataDir } = config;
+  const { agent, scheduler, soul, port, dataDir, sessions: injected } = config;
 
-  const sessions = new SessionStore(dataDir || './data');
-  sessions.init().catch(e => console.error('[Sessions] init failed:', e));
+  const sessions = injected ?? new SessionStore(dataDir || './data');
+  if (!injected) sessions.init().catch(e => console.error('[Sessions] init failed:', e));
 
   const ctx = { agent, scheduler, soul, sessions };
 

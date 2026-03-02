@@ -106,7 +106,7 @@ export class Agent {
     this.isFirstRun = false;
   }
 
-  async run(messages: ModelMessage[]): Promise<string> {
+  async run(messages: ModelMessage[], onToolUse?: ToolEventCallback): Promise<string> {
     if (!this.currentModelId) {
       return 'Error: No model available. Set an API key.';
     }
@@ -138,7 +138,7 @@ export class Agent {
         onboarding,
       });
 
-      const onToolUse = this.onToolUse;
+      const toolCallback = onToolUse ?? this.onToolUse;
 
       const result = await generateText({
         model: this.resolveModel(),
@@ -147,12 +147,12 @@ export class Agent {
         tools: this.tools,
         stopWhen: stepCountIs(MAX_STEPS),
         onStepFinish: (step) => {
-          if (!onToolUse) return;
+          if (!toolCallback) return;
           const calls = (step as Record<string, unknown>).toolCalls;
           if (!Array.isArray(calls)) return;
           for (const call of calls) {
             if (call && typeof call === 'object' && 'toolName' in call) {
-              onToolUse(String(call.toolName));
+              toolCallback(String(call.toolName));
             }
           }
         },
