@@ -279,6 +279,10 @@ export class MemoryStore {
     return this.indexer.deleteTag(name);
   }
 
+  deleteKnowledge(id: string): boolean {
+    return this.indexer.deleteKnowledge(id);
+  }
+
   close(): void {
     this.indexer.close();
   }

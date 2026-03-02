@@ -547,6 +547,17 @@ export class MemoryIndexer {
     return true;
   }
 
+  deleteKnowledge(id: string): boolean {
+    const exists = this.db.query(`SELECT id FROM knowledge WHERE id = ?`).get(id);
+    if (!exists) return false;
+    this.db.prepare(`DELETE FROM knowledge_tags WHERE knowledge_id = ?`).run(id);
+    this.db.prepare(`DELETE FROM knowledge WHERE id = ?`).run(id);
+    try {
+      this.db.prepare(`DELETE FROM chunks_vec WHERE id = ?`).run(`knowledge:${id}`);
+    } catch { /* vec table may not exist */ }
+    return true;
+  }
+
   private async indexKnowledgeVector(id: string, text: string): Promise<void> {
     if (!this.embedFn || !this.dimensions) return;
     const embedding = await this.embedFn(text);

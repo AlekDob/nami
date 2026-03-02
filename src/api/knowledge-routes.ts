@@ -74,6 +74,12 @@ const postTagMerge: Handler = async (req, agent) => {
   return json({ success: true });
 };
 
+const deleteKnowledge: Handler = async (_req, agent, params) => {
+  const ok = agent.getMemoryStore().deleteKnowledge(params.id);
+  if (!ok) return err('Knowledge entry not found', 404);
+  return json({ success: true });
+};
+
 const deleteTag: Handler = async (_req, agent, params) => {
   const ok = agent.getMemoryStore().deleteTag(params.name);
   if (!ok) return err('Tag not found', 404);
@@ -90,6 +96,7 @@ export const knowledgeRoutes: KnowledgeRoute[] = [
   { method: 'GET', path: '/api/knowledge', handler: getKnowledgeList },
   { method: 'GET', path: '/api/knowledge/graph', handler: getKnowledgeGraph },
   { method: 'GET', path: '/api/knowledge/:id', handler: getKnowledgeById },
+  { method: 'DELETE', path: '/api/knowledge/:id', handler: deleteKnowledge },
   { method: 'PATCH', path: '/api/knowledge/:id/tags', handler: patchKnowledgeTags },
   { method: 'GET', path: '/api/tags', handler: getTagList },
   { method: 'PATCH', path: '/api/tags/:name/rename', handler: patchTagRename },
