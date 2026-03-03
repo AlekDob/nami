@@ -1,9 +1,10 @@
 import { createAnthropic } from '@ai-sdk/anthropic';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
 import { openrouter } from '@openrouter/ai-sdk-provider';
 
 export type Preset = 'fast' | 'smart' | 'pro';
-export type ProviderName = 'openrouter' | 'openai' | 'anthropic' | 'moonshot' | 'together' | 'minimax' | 'zai';
+export type ProviderName = 'openrouter' | 'openai' | 'anthropic' | 'google' | 'moonshot' | 'together' | 'minimax' | 'zai';
 
 interface ModelEntry {
   id: string;
@@ -16,7 +17,7 @@ interface ModelEntry {
 
 const REGISTRY: ModelEntry[] = [
   // Fast tier — cheap, quick responses
-  { id: 'google/gemini-2.0-flash-001', label: 'Gemini 2.0 Flash (OpenRouter)', provider: 'openrouter', preset: 'fast', toolUse: true, vision: true },
+  { id: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash (OpenRouter)', provider: 'openrouter', preset: 'fast', toolUse: true, vision: true },
   { id: 'kimi-k2-0905-preview', label: 'Kimi K2', provider: 'moonshot', preset: 'fast', toolUse: false, vision: false },
   { id: 'kimi-k2.5', label: 'Kimi K2.5 Code Plan', provider: 'moonshot', preset: 'smart', toolUse: true, vision: false },
   { id: 'MiniMax-M2.5-highspeed', label: 'MiniMax M2.5 HighSpeed', provider: 'minimax', preset: 'fast', toolUse: true, vision: false },
@@ -32,18 +33,24 @@ const REGISTRY: ModelEntry[] = [
   { id: 'z-ai/glm-4.5v', label: 'GLM 4.5V Vision (OpenRouter)', provider: 'openrouter', preset: 'smart', toolUse: false, vision: true },
   { id: 'openai/gpt-4o-mini', label: 'GPT-4o Mini (OpenRouter)', provider: 'openrouter', preset: 'smart', toolUse: true, vision: true },
   { id: 'gpt-4o-mini', label: 'GPT-4o Mini', provider: 'openai', preset: 'smart', toolUse: true, vision: true },
-  { id: 'anthropic/claude-3.5-haiku', label: 'Claude 3.5 Haiku (OpenRouter)', provider: 'openrouter', preset: 'smart', toolUse: true, vision: true },
+  { id: 'anthropic/claude-haiku-4-5', label: 'Claude Haiku 4.5 (OpenRouter)', provider: 'openrouter', preset: 'smart', toolUse: true, vision: true },
+  { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', provider: 'anthropic', preset: 'smart', toolUse: true, vision: true },
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'google', preset: 'fast', toolUse: true, vision: true },
+  { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash Lite', provider: 'google', preset: 'fast', toolUse: true, vision: true },
   // Pro tier — best quality
   { id: 'glm-5', label: 'GLM 5', provider: 'zai', preset: 'pro', toolUse: true, vision: false },
   { id: 'openai/gpt-4o', label: 'GPT-4o (OpenRouter)', provider: 'openrouter', preset: 'pro', toolUse: true, vision: true },
   { id: 'gpt-4o', label: 'GPT-4o', provider: 'openai', preset: 'pro', toolUse: true, vision: true },
-  { id: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet (OpenRouter)', provider: 'openrouter', preset: 'pro', toolUse: true, vision: true },
+  { id: 'anthropic/claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (OpenRouter)', provider: 'openrouter', preset: 'pro', toolUse: true, vision: true },
+  { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', provider: 'anthropic', preset: 'pro', toolUse: true, vision: true },
+  { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', provider: 'google', preset: 'pro', toolUse: true, vision: true },
 ];
 
 interface DetectedKeys {
   openrouter?: string;
   openai?: string;
   anthropic?: string;
+  google?: string;
   moonshot?: string;
   together?: string;
   minimax?: string;
@@ -55,6 +62,7 @@ export function detectApiKeys(): DetectedKeys {
     openrouter: process.env.OPENROUTER_API_KEY,
     openai: process.env.OPENAI_API_KEY,
     anthropic: process.env.ANTHROPIC_API_KEY,
+    google: process.env.GOOGLE_AI_API_KEY,
     moonshot: process.env.MOONSHOT_API_KEY,
     together: process.env.TOGETHER_API_KEY,
     minimax: process.env.MINIMAX_API_KEY,
@@ -63,9 +71,6 @@ export function detectApiKeys(): DetectedKeys {
 }
 
 function isAvailable(entry: ModelEntry, keys: DetectedKeys): boolean {
-  if (entry.provider === 'openrouter') return Boolean(keys.openrouter);
-  if (entry.provider === 'minimax') return Boolean(keys.minimax);
-  if (entry.provider === 'zai') return Boolean(keys.zai);
   return Boolean(keys[entry.provider]);
 }
 
@@ -102,6 +107,19 @@ export function pickFastDirectModel(keys: DetectedKeys): ModelEntry | null {
   return anyDirect[0] || available[0] || null;
 }
 
+/** Pick best available vision model, preferring direct providers with tool use.
+ *  Used for auto-routing when messages contain images. */
+export function pickVisionModel(keys: DetectedKeys): ModelEntry | null {
+  const available = getAvailableModels(keys).filter(m => m.vision);
+  // Best: direct provider with vision + tools (e.g. Gemini Flash, GPT-4o Mini)
+  const directWithTools = available.filter(m => m.provider !== 'openrouter' && m.toolUse);
+  if (directWithTools.length > 0) return directWithTools[0];
+  // Fallback: any direct vision model
+  const direct = available.filter(m => m.provider !== 'openrouter');
+  if (direct.length > 0) return direct[0];
+  return available[0] || null;
+}
+
 export function findModel(nameOrId: string): ModelEntry | undefined {
   const lower = nameOrId.toLowerCase();
   // Exact match first (id or label), then fuzzy includes
@@ -114,13 +132,7 @@ export function findModel(nameOrId: string): ModelEntry | undefined {
 }
 
 function getApiKey(provider: ProviderName, keys: DetectedKeys): string {
-  if (provider === 'openrouter') return keys.openrouter || '';
-  if (provider === 'openai') return keys.openai || '';
-  if (provider === 'anthropic') return keys.anthropic || '';
-  if (provider === 'moonshot') return keys.moonshot || '';
-  if (provider === 'minimax') return keys.minimax || '';
-  if (provider === 'zai') return keys.zai || '';
-  return keys.together || '';
+  return keys[provider] || '';
 }
 
 /** Wrap fetch to inject thinking: disabled into Moonshot K2.5 requests */
@@ -142,6 +154,16 @@ function createMoonshotFetch(): typeof fetch {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createModel(entry: ModelEntry, keys: DetectedKeys): any {
   const apiKey = getApiKey(entry.provider, keys);
+
+  if (entry.provider === 'anthropic') {
+    const provider = createAnthropic({ apiKey });
+    return provider(entry.id);
+  }
+
+  if (entry.provider === 'google') {
+    const provider = createGoogleGenerativeAI({ apiKey });
+    return provider(entry.id);
+  }
 
   if (entry.provider === 'openai') {
     const provider = createOpenAI({ apiKey });

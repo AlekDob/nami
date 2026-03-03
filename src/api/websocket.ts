@@ -62,14 +62,6 @@ async function handleChat(
     send(ws, { type: 'error', error: 'Agent not initialized' });
     return;
   }
-  const hasImages = messages.some(m =>
-    Array.isArray(m.content) && m.content.some(p => p.type === 'image')
-  );
-  if (hasImages && !agentRef.supportsVision()) {
-    send(ws, { type: 'error', error: 'Current model does not support images. Switch to a vision-capable model.' });
-    return;
-  }
-
   const msgs: ModelMessage[] = messages.map((m) => ({
     role: m.role,
     content: m.content,

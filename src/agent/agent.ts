@@ -12,6 +12,7 @@ import {
   detectApiKeys,
   pickBestModel,
   pickFastDirectModel,
+  pickVisionModel,
   findModel,
   createModel,
   formatModelList,
@@ -126,7 +127,7 @@ export class Agent {
       const onToolUse = this.onToolUse;
 
       const result = await generateText({
-        model: this.resolveModel(),
+        model: this.resolveModelForMessages(messages),
         system: systemPrompt,
         messages,
         tools: this.tools,
@@ -249,6 +250,31 @@ export class Agent {
     return openrouter(this.currentModelId || '', {
       apiKey: this.keys.openrouter,
     });
+  }
+
+  /** Check if any message contains image content */
+  private hasImages(messages: ModelMessage[]): boolean {
+    for (const msg of messages) {
+      if (!Array.isArray(msg.content)) continue;
+      for (const part of msg.content) {
+        if (part.type === 'image') return true;
+      }
+    }
+    return false;
+  }
+
+  /** Resolve model with auto-routing: if messages have images and current
+   *  model lacks vision, temporarily switch to best available vision model. */
+  private resolveModelForMessages(messages: ModelMessage[]): ReturnType<typeof createModel> {
+    if (!this.hasImages(messages) || this.supportsVision()) {
+      return this.resolveModel();
+    }
+    const visionEntry = pickVisionModel(this.keys);
+    if (visionEntry) {
+      console.log(`[Agent] Auto-routing to vision model: ${visionEntry.label}`);
+      return createModel(visionEntry, this.keys);
+    }
+    return this.resolveModel();
   }
 
   private lastUserMessage(messages: ModelMessage[]): string {

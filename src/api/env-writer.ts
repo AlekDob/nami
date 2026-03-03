@@ -6,7 +6,10 @@ const PROVIDER_ENV_MAP: Record<string, string> = {
   openrouter: 'OPENROUTER_API_KEY',
   openai: 'OPENAI_API_KEY',
   anthropic: 'ANTHROPIC_API_KEY',
+  google: 'GOOGLE_AI_API_KEY',
   moonshot: 'MOONSHOT_API_KEY',
+  minimax: 'MINIMAX_API_KEY',
+  zai: 'ZAI_API_KEY',
   together: 'TOGETHER_API_KEY',
   elevenlabs: 'ELEVENLABS_API_KEY',
 };
@@ -15,7 +18,10 @@ const PROVIDER_LABELS: Record<string, string> = {
   openrouter: 'OpenRouter',
   openai: 'OpenAI',
   anthropic: 'Anthropic',
+  google: 'Google',
   moonshot: 'Moonshot',
+  minimax: 'MiniMax',
+  zai: 'Z.AI',
   together: 'Together',
   elevenlabs: 'ElevenLabs',
 };

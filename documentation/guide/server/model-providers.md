@@ -89,6 +89,84 @@ This applies globally to all models (harmless for models that don't emit these t
 
 ---
 
+## Anthropic (Claude Models)
+
+**SDK**: `@ai-sdk/anthropic` (native, not OpenAI-compatible)
+**Env var**: `ANTHROPIC_API_KEY`
+
+### Available Models
+
+| Model ID | Tier | Tool Use | Vision | Notes |
+|----------|------|----------|--------|-------|
+| `claude-sonnet-4-6` | pro | Yes | **Yes** | Best speed/intelligence, $3/M input |
+| `claude-haiku-4-5` | smart | Yes | **Yes** | Fastest, $1/M input |
+
+### Configuration
+
+```typescript
+if (entry.provider === 'anthropic') {
+  const provider = createAnthropic({ apiKey });
+  return provider(entry.id);
+}
+```
+
+### Important Notes
+
+- Uses native `@ai-sdk/anthropic` SDK (NOT `createOpenAI` with base URL)
+- API key format: `sk-ant-api03-...`
+- Get your key at: https://console.anthropic.com/
+- **Subscription (Pro/Max) tokens CANNOT be used** — only API keys from console.anthropic.com
+- Pricing: Haiku 4.5 $1/M input, $5/M output — Sonnet 4.6 $3/M input, $15/M output
+- Opus 4.6 (`claude-opus-4-6`) available but not in registry (expensive: $5/M input, $25/M output)
+
+---
+
+## Google (Gemini Models)
+
+**SDK**: `@ai-sdk/google` (native)
+**Env var**: `GOOGLE_AI_API_KEY`
+
+### Available Models
+
+| Model ID | Tier | Tool Use | Vision | Notes |
+|----------|------|----------|--------|-------|
+| `gemini-2.5-flash` | fast | Yes | **Yes** | Best price-performance, reasoning, free tier |
+| `gemini-2.5-flash-lite` | fast | Yes | **Yes** | Cheapest, highest throughput |
+| `gemini-2.5-pro` | pro | Yes | **Yes** | Most advanced Gemini, 1M context |
+
+### Configuration
+
+```typescript
+if (entry.provider === 'google') {
+  const provider = createGoogleGenerativeAI({ apiKey });
+  return provider(entry.id);
+}
+```
+
+### Important Notes
+
+- Uses `@ai-sdk/google` SDK
+- Free tier: 1,500 requests/day for Gemini Flash, 50/day for Pro
+- API key format: `AIza...`
+- Get your key at: https://aistudio.google.com/apikey
+- Gemini 2.5 Flash is the best free vision model available
+- **Gemini 2.0 Flash retired June 1, 2026** — use 2.5 Flash instead
+- Gemini 3.1 Pro Preview also available (`gemini-3.1-pro-preview`) but not in registry yet
+
+---
+
+## Auto-Vision Routing
+
+When the current model doesn't support vision and the user sends an image, Nami **automatically switches** to the best available vision model for that single request.
+
+Priority order:
+1. Direct vision models (GPT-4o Mini, Gemini Flash, GLM-4.5V, Claude Haiku)
+2. OpenRouter vision models (fallback)
+
+This is transparent to the user — no manual model switching needed.
+
+---
+
 ## Adding a New Provider
 
 1. Add provider name to `ProviderName` type union
@@ -112,7 +190,9 @@ MINIMAX_API_KEY=sk-cp-...
 OPENAI_API_KEY=sk-...
 OPENROUTER_API_KEY=sk-or-...
 MOONSHOT_API_KEY=...
+ANTHROPIC_API_KEY=sk-ant-api03-...
+GOOGLE_AI_API_KEY=AIza...
 ```
 
 ## Last Updated
-2026-02-16
+2026-03-03

@@ -52,13 +52,6 @@ const postChat: Handler = async (req, { agent, sessions }) => {
   const body = (await req.json()) as ChatRequest;
   if (!body.messages?.length) return err('messages required', 400);
 
-  const hasImages = body.messages.some(m =>
-    Array.isArray(m.content) && m.content.some(p => p.type === 'image')
-  );
-  if (hasImages && !agent.supportsVision()) {
-    return err('Current model does not support images. Switch to a vision-capable model.', 400);
-  }
-
   const msgs = body.messages.map((m) => ({
     role: m.role as 'user' | 'assistant',
     content: m.content,
