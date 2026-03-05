@@ -97,7 +97,7 @@ export class SessionStore {
     session.messages.push(msg);
     session.updatedAt = msg.timestamp;
     if (session.title === 'New conversation' && role === 'user') {
-      session.title = content.slice(0, MAX_TITLE_LENGTH).trim();
+      session.title = this.safeSlice(content, MAX_TITLE_LENGTH).trim();
     }
     await this.saveSession(session);
     this.syncIndexEntry(session);
@@ -105,6 +105,15 @@ export class SessionStore {
   }
 
   // MARK: - Private
+
+  /** Truncate without splitting UTF-16 surrogate pairs */
+  private safeSlice(str: string, maxLen: number): string {
+    if (str.length <= maxLen) return str;
+    // If char at maxLen-1 is a high surrogate, cut one shorter
+    const code = str.charCodeAt(maxLen - 1);
+    const end = (code >= 0xD800 && code <= 0xDBFF) ? maxLen - 1 : maxLen;
+    return str.slice(0, end);
+  }
 
   private sessionPath(id: string): string {
     return resolve(this.sessionsDir, `${id}.json`);
@@ -127,7 +136,7 @@ export class SessionStore {
       messageCount: session.messages.length,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
-      lastMessage: last ? last.content.slice(0, 100) : '',
+      lastMessage: last ? this.safeSlice(last.content, 100) : '',
     };
   }
 
