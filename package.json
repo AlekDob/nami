@@ -31,7 +31,7 @@
     "imapflow": "^1.2.8",
     "playwright": "^1.58.1",
     "sqlite-vec": "^0.1.7-alpha.2",
-    "youtube-transcript": "^1.2.1",
+    "youtube-transcript-plus": "^1.2.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {

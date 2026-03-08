@@ -18,6 +18,7 @@ import { createMemoryTag } from './memory-tag.js';
 import {
   createScheduleTask,
   createListTasks,
+  createToggleTask,
   createCancelTask,
 } from './schedule-reminder.js';
 import {
@@ -95,6 +96,7 @@ export function buildTools(memory: MemoryStore, scheduler?: Scheduler) {
   if (scheduler) {
     tools.scheduleTask = createScheduleTask(scheduler);
     tools.listTasks = createListTasks(scheduler);
+    tools.toggleTask = createToggleTask(scheduler);
     tools.cancelTask = createCancelTask(scheduler);
   }
 

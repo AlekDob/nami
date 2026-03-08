@@ -1,5 +1,7 @@
 import { generateText, stepCountIs, type ModelMessage } from 'ai';
 import { openrouter } from "@openrouter/ai-sdk-provider";
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { AgentConfig } from '../config/types.js';
 import { MemoryStore } from '../memory/store.js';
 import { SkillLoader } from '../skills/loader.js';
@@ -21,6 +23,7 @@ import {
 
 const DEFAULT_USER_ID = 'default';
 const DEFAULT_DATA_DIR = './data';
+const MODEL_CONFIG_FILE = 'default-model.json';
 const MAX_STEPS = 10;
 const CONTEXT_WINDOW = 128_000;
 
@@ -56,7 +59,7 @@ export class Agent {
 
   constructor(
     public config: AgentConfig,
-    dataDir: string = DEFAULT_DATA_DIR,
+    private dataDir: string = DEFAULT_DATA_DIR,
     userId: string = DEFAULT_USER_ID,
   ) {
     this.memory = new MemoryStore(dataDir, userId);
@@ -82,14 +85,22 @@ export class Agent {
       await this.soul.createDefault();
     }
 
-    const preset = (process.env.MODEL_PRESET as Preset) || 'smart';
-    const envModel = this.config.modelName;
-    if (envModel) {
-      const found = findModel(envModel);
-      this.currentModelId = found ? found.id : envModel;
+    // Priority: persisted default > env MODEL_NAME > pickBestModel(preset)
+    const persisted = await this.loadPersistedModel();
+    if (persisted) {
+      const found = findModel(persisted);
+      this.currentModelId = found ? found.id : persisted;
+      console.log(`[Agent] Using persisted default model: ${this.currentModelId}`);
     } else {
-      const best = pickBestModel(preset, this.keys);
-      this.currentModelId = best?.id || null;
+      const preset = (process.env.MODEL_PRESET as Preset) || 'smart';
+      const envModel = this.config.modelName;
+      if (envModel) {
+        const found = findModel(envModel);
+        this.currentModelId = found ? found.id : envModel;
+      } else {
+        const best = pickBestModel(preset, this.keys);
+        this.currentModelId = best?.id || null;
+      }
     }
   }
 
@@ -232,13 +243,38 @@ export class Agent {
     const found = findModel(nameOrId);
     if (found) {
       this.currentModelId = found.id;
+      this.persistModel(found.id);
       const tools = found.toolUse
         ? '(tools: yes)'
         : '(tools: no)';
       return 'Switched to ' + found.label + ' ' + tools;
     }
     this.currentModelId = nameOrId;
+    this.persistModel(nameOrId);
     return 'Switched to ' + nameOrId + ' (custom)';
+  }
+
+  private async loadPersistedModel(): Promise<string | null> {
+    try {
+      const filePath = join(this.dataDir, MODEL_CONFIG_FILE);
+      const raw = await readFile(filePath, 'utf-8');
+      const config = JSON.parse(raw) as { modelId?: string };
+      return config.modelId || null;
+    } catch {
+      return null;
+    }
+  }
+
+  private persistModel(modelId: string): void {
+    const filePath = join(this.dataDir, MODEL_CONFIG_FILE);
+    const data = JSON.stringify(
+      { modelId, updatedAt: new Date().toISOString() },
+      null,
+      2,
+    );
+    mkdir(this.dataDir, { recursive: true })
+      .then(() => writeFile(filePath, data, 'utf-8'))
+      .catch((err) => console.error('[Agent] Failed to persist model:', err));
   }
 
   getModelInfo(): string {

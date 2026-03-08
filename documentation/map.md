@@ -66,6 +66,7 @@ Quick reference to all project knowledge. Start here when beginning a new sessio
 | **macOS Services (right-click)** | `patterns/pattern-macos-services-right-click-integration.md` | AI Commands in right-click menu via NSServices |
 | **Local Commands + Self-Generation** | `patterns/pattern-local-commands-self-generation.md` | Non-AI bash commands + Nami creates commands via chat |
 | **Notch Panel (Dynamic Island)** | `patterns/pattern-notch-panel-dynamic-island-macos.md` | macOS notch overlay with quick commands + AI execution |
+| **YouTube transcript (yt-dlp)** | `patterns/pattern-youtube-transcript-yt-dlp-mac-proxy.md` | Extract YouTube transcripts via yt-dlp on Mac agent |
 
 ## Decisions
 
@@ -115,4 +116,4 @@ Quick reference to all project knowledge. Start here when beginning a new sessio
 - iOS 17+ / iPadOS 17+ / macOS 14+
 
 ## Last Updated
-2026-02-18
+2026-03-08

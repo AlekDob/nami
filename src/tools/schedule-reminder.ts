@@ -83,28 +83,9 @@ export function createScheduleTask(scheduler: Scheduler) {
 
       const label = name || task.slice(0, 40);
 
-      // Re-enable existing disabled job with same name/task
-      const existing = scheduler.listJobs().find(
-        j => !j.enabled && (
-          j.name.toLowerCase() === label.toLowerCase() ||
-          j.task.toLowerCase() === task.toLowerCase()
-        ),
-      );
-
-      if (existing) {
-        const updated = await scheduler.updateAndEnable(existing.id, {
-          cron, task, repeat,
-        });
-        const next = describeNext(cron, scheduler);
-        return {
-          success: true,
-          jobId: existing.id,
-          message: 'Re-enabled existing task: "' + (updated?.name ?? label) + '"',
-          nextTrigger: next,
-          repeats: repeat,
-          reused: true,
-        };
-      }
+      // Brain: fix-session-mixing-cron-vs-chat
+      // Do NOT auto-re-enable disabled jobs — user disables them intentionally.
+      // If a disabled job exists with the same name, create a new one instead.
 
       const job = await scheduler.addJob({
         name: label,
@@ -153,9 +134,35 @@ export function createListTasks(scheduler: Scheduler) {
   });
 }
 
+export function createToggleTask(scheduler: Scheduler) {
+  return tool({
+    description:
+      'Enable or disable a scheduled task by its ID. ' +
+      'Use this when the user wants to temporarily pause a task without deleting it.',
+    inputSchema: z.object({
+      jobId: z.string().describe('The job ID to toggle'),
+    }),
+    execute: async ({ jobId }) => {
+      const toggled = await scheduler.toggleJob(jobId);
+      if (!toggled) {
+        return { success: false, error: 'No task found with ID ' + jobId };
+      }
+      return {
+        success: true,
+        jobId: toggled.id,
+        name: toggled.name,
+        enabled: toggled.enabled,
+        message: toggled.enabled
+          ? 'Task "' + toggled.name + '" enabled'
+          : 'Task "' + toggled.name + '" disabled',
+      };
+    },
+  });
+}
+
 export function createCancelTask(scheduler: Scheduler) {
   return tool({
-    description: 'Cancel/remove a scheduled task by its ID',
+    description: 'Cancel/remove a scheduled task permanently by its ID',
     inputSchema: z.object({
       jobId: z.string().describe('The job ID to cancel'),
     }),

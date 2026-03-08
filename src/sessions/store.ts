@@ -106,6 +106,7 @@ export class SessionStore {
 
   // MARK: - Private
 
+  // Brain: fix-sessions-surrogate-pair-truncation
   /** Truncate without splitting UTF-16 surrogate pairs */
   private safeSlice(str: string, maxLen: number): string {
     if (str.length <= maxLen) return str;
@@ -113,6 +114,27 @@ export class SessionStore {
     const code = str.charCodeAt(maxLen - 1);
     const end = (code >= 0xD800 && code <= 0xDBFF) ? maxLen - 1 : maxLen;
     return str.slice(0, end);
+  }
+
+  /** Remove lone surrogates that break Swift JSONDecoder */
+  private stripLoneSurrogates(str: string): string {
+    let result = '';
+    for (let i = 0; i < str.length; i++) {
+      const code = str.charCodeAt(i);
+      if (code >= 0xD800 && code <= 0xDBFF) {
+        const next = str.charCodeAt(i + 1);
+        if (next >= 0xDC00 && next <= 0xDFFF) {
+          result += str[i] + str[i + 1];
+          i++;
+        }
+        // else: lone high surrogate — skip
+      } else if (code >= 0xDC00 && code <= 0xDFFF) {
+        // lone low surrogate — skip
+      } else {
+        result += str[i];
+      }
+    }
+    return result;
   }
 
   private sessionPath(id: string): string {
@@ -160,6 +182,16 @@ export class SessionStore {
     try {
       const raw = await readFile(this.indexPath, 'utf-8');
       this.index = JSON.parse(raw) as SessionIndex;
+      // Brain: fix-sessions-surrogate-pair-truncation
+      // Sanitize old data that may contain lone surrogates from pre-fix era
+      let dirty = false;
+      for (const s of this.index.sessions) {
+        const cleanMsg = this.stripLoneSurrogates(s.lastMessage || '');
+        const cleanTitle = this.stripLoneSurrogates(s.title || '');
+        if (cleanMsg !== s.lastMessage) { s.lastMessage = cleanMsg; dirty = true; }
+        if (cleanTitle !== s.title) { s.title = cleanTitle; dirty = true; }
+      }
+      if (dirty) await this.saveIndex();
     } catch {
       this.index = { sessions: [], version: 1 };
     }
