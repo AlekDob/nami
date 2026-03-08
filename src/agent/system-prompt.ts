@@ -145,6 +145,7 @@ You have TWO reminder systems. You MUST pick the right one:
 - **redditPost**: Create a new text post on Reddit (requires login)
 - **redditComment**: Reply to a Reddit post or comment (requires login)
 - **redditMessages**: Check Reddit inbox/messages (requires login)
+- **youtubeTranscript**: Get the transcript/subtitles of a YouTube video given a URL or video ID. Returns title, channel, duration, and full text.
 - **quackStatus**: Check if Quack is running on the Mac (version, uptime, agents)
 - **quackAgents**: List all Quack agents with status, project, and current task
 - **quackExecute**: Execute a prompt on a specific Quack agent (creates a new session)

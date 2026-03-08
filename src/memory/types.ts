@@ -62,6 +62,7 @@ export interface KnowledgeEntry {
   content: string;
   summary: string;
   sourceUrl?: string;
+  ogImage?: string;
   sourceType: SourceType;
   tags: string[];
   createdAt: string;
@@ -76,5 +77,6 @@ export interface KnowledgeResult {
   score: number;
   sourceType: SourceType;
   sourceUrl?: string;
+  ogImage?: string;
   createdAt: string;
 }

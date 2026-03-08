@@ -33,6 +33,12 @@ export interface RunStats {
   durationMs: number;
 }
 
+export interface RunOptions {
+  /** Per-call tool event callback — isolates concurrent callers */
+  onToolUse?: ToolEventCallback;
+}
+
+// Brain: fix-session-mixing-cron-vs-chat
 export class Agent {
   private memory: MemoryStore;
   private skills: SkillLoader;
@@ -42,7 +48,10 @@ export class Agent {
   private keys = detectApiKeys();
   private currentModelId: string | null = null;
   private isFirstRun = false;
+  /** Promise-based mutex — serializes agent.run() calls */
+  private runQueue: Promise<void> = Promise.resolve();
   lastRunStats: RunStats | null = null;
+  /** @deprecated Use RunOptions.onToolUse for per-call isolation */
   onToolUse: ToolEventCallback | null = null;
 
   constructor(
@@ -92,7 +101,25 @@ export class Agent {
     this.isFirstRun = false;
   }
 
-  async run(messages: ModelMessage[]): Promise<string> {
+  // Brain: fix-session-mixing-cron-vs-chat
+  async run(
+    messages: ModelMessage[],
+    options?: RunOptions,
+  ): Promise<string> {
+    // Serialize all runs through a promise queue — prevents concurrent
+    // agent.run() calls from cron jobs and user chat from interleaving
+    return new Promise<string>((resolve) => {
+      this.runQueue = this.runQueue.then(async () => {
+        const result = await this.runInternal(messages, options);
+        resolve(result);
+      });
+    });
+  }
+
+  private async runInternal(
+    messages: ModelMessage[],
+    options?: RunOptions,
+  ): Promise<string> {
     if (!this.currentModelId) {
       return 'Error: No model available. Set an API key.';
     }
@@ -124,7 +151,8 @@ export class Agent {
         onboarding,
       });
 
-      const onToolUse = this.onToolUse;
+      // Per-call callback takes precedence over instance-level
+      const onToolUse = options?.onToolUse ?? this.onToolUse;
 
       const result = await generateText({
         model: this.resolveModelForMessages(messages),

@@ -68,16 +68,15 @@ async function handleChat(
   }));
 
   console.log(`[WS] Chat started for ${ws.data.id}, messages: ${messages.length}`);
-  // Stream tool usage events to the client
-  const previousCallback = agentRef.onToolUse;
-  agentRef.onToolUse = (toolName: string) => {
-    send(ws, { type: 'tool_use', tool: toolName });
-    if (previousCallback) previousCallback(toolName);
-  };
 
   try {
-    const text = await agentRef.run(msgs);
-    agentRef.onToolUse = previousCallback;
+    // Brain: fix-session-mixing-cron-vs-chat
+    // Per-call onToolUse — no more instance-level callback corruption
+    const text = await agentRef.run(msgs, {
+      onToolUse: (toolName: string) => {
+        send(ws, { type: 'tool_use', tool: toolName });
+      },
+    });
     const stats = agentRef.lastRunStats;
 
     // Persist to session

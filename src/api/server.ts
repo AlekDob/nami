@@ -12,13 +12,20 @@ export interface ApiServerConfig {
   soul: SoulLoader;
   port: number;
   dataDir?: string;
+  /** Share a single SessionStore instance — avoids race conditions on index.json */
+  sessions?: SessionStore;
 }
 
+// Brain: fix-session-mixing-cron-vs-chat
 export function startApiServer(config: ApiServerConfig): void {
   const { agent, scheduler, soul, port, dataDir } = config;
 
-  const sessions = new SessionStore(dataDir || './data');
-  sessions.init().catch(e => console.error('[Sessions] init failed:', e));
+  // Use shared SessionStore if provided, otherwise create one (backward compat)
+  const sessions = config.sessions
+    ?? new SessionStore(dataDir || './data');
+  if (!config.sessions) {
+    sessions.init().catch(e => console.error('[Sessions] init failed:', e));
+  }
 
   const ctx = { agent, scheduler, soul, sessions };
 

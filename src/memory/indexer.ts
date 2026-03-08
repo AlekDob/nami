@@ -50,6 +50,7 @@ export class MemoryIndexer {
         content TEXT NOT NULL,
         summary TEXT NOT NULL,
         source_url TEXT,
+        og_image TEXT,
         source_type TEXT NOT NULL DEFAULT 'note',
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -69,6 +70,12 @@ export class MemoryIndexer {
       CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_fts
       USING fts5(title, content, summary, content=knowledge, content_rowid=rowid);
     `);
+    // Migrate: add og_image column if missing (existing DBs)
+    try {
+      this.db.exec(`ALTER TABLE knowledge ADD COLUMN og_image TEXT`);
+    } catch {
+      // Column already exists
+    }
   }
 
   private ensureVecTable(): void {
@@ -334,9 +341,9 @@ export class MemoryIndexer {
   async saveKnowledge(entry: Omit<KnowledgeEntry, 'createdAt' | 'updatedAt'>): Promise<string> {
     const now = new Date().toISOString();
     this.db.prepare(`
-      INSERT INTO knowledge (id, title, content, summary, source_url, source_type, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(entry.id, entry.title, entry.content, entry.summary, entry.sourceUrl ?? null, entry.sourceType, now, now);
+      INSERT INTO knowledge (id, title, content, summary, source_url, og_image, source_type, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(entry.id, entry.title, entry.content, entry.summary, entry.sourceUrl ?? null, entry.ogImage ?? null, entry.sourceType, now, now);
 
     // FTS index
     const row = this.db.query(`SELECT rowid FROM knowledge WHERE id = ?`).get(entry.id) as { rowid: number } | null;
@@ -367,6 +374,7 @@ export class MemoryIndexer {
       content: row.content,
       summary: row.summary,
       sourceUrl: row.source_url || undefined,
+      ogImage: row.og_image || undefined,
       sourceType: row.source_type as KnowledgeEntry['sourceType'],
       tags: this.getTagsForKnowledge(id),
       createdAt: row.created_at,
@@ -419,9 +427,52 @@ export class MemoryIndexer {
     return rows.map(r => r.name);
   }
 
+  listTagsWithCount(): Array<{ name: string; count: number }> {
+    return this.db.query(`
+      SELECT t.name, COUNT(kt.knowledge_id) as count
+      FROM tags t JOIN knowledge_tags kt ON t.id = kt.tag_id
+      GROUP BY t.id ORDER BY count DESC
+    `).all() as Array<{ name: string; count: number }>;
+  }
+
+  deleteKnowledge(id: string): boolean {
+    this.db.prepare(`DELETE FROM knowledge_tags WHERE knowledge_id = ?`).run(id);
+    this.db.prepare(`DELETE FROM knowledge WHERE id = ?`).run(id);
+    try {
+      this.db.prepare(`DELETE FROM knowledge_fts WHERE rowid IN (SELECT rowid FROM knowledge WHERE id = ?)`).run(id);
+    } catch { /* fts may be out of sync */ }
+    return true;
+  }
+
+  renameTag(oldName: string, newName: string): boolean {
+    const normalized = newName.toLowerCase().trim();
+    if (!normalized) return false;
+    this.db.prepare(`UPDATE tags SET name = ? WHERE name = ?`).run(normalized, oldName.toLowerCase().trim());
+    return true;
+  }
+
+  mergeTags(keep: string, merge: string): boolean {
+    const keepTag = this.db.query(`SELECT id FROM tags WHERE name = ?`).get(keep.toLowerCase().trim()) as { id: number } | null;
+    const mergeTag = this.db.query(`SELECT id FROM tags WHERE name = ?`).get(merge.toLowerCase().trim()) as { id: number } | null;
+    if (!keepTag || !mergeTag) return false;
+    // Move all associations from merge to keep (ignore duplicates)
+    this.db.prepare(`UPDATE OR IGNORE knowledge_tags SET tag_id = ? WHERE tag_id = ?`).run(keepTag.id, mergeTag.id);
+    this.db.prepare(`DELETE FROM knowledge_tags WHERE tag_id = ?`).run(mergeTag.id);
+    this.db.prepare(`DELETE FROM tags WHERE id = ?`).run(mergeTag.id);
+    return true;
+  }
+
+  deleteTag(name: string): boolean {
+    const tag = this.db.query(`SELECT id FROM tags WHERE name = ?`).get(name.toLowerCase().trim()) as { id: number } | null;
+    if (!tag) return false;
+    this.db.prepare(`DELETE FROM knowledge_tags WHERE tag_id = ?`).run(tag.id);
+    this.db.prepare(`DELETE FROM tags WHERE id = ?`).run(tag.id);
+    return true;
+  }
+
   recentKnowledge(limit: number): KnowledgeResult[] {
     const rows = this.db.query(`
-      SELECT id, title, summary, source_type, source_url, created_at
+      SELECT id, title, summary, source_type, source_url, og_image, created_at
       FROM knowledge ORDER BY created_at DESC LIMIT ?
     `).all(limit) as Array<Record<string, string>>;
     return rows.map(r => ({
@@ -432,6 +483,7 @@ export class MemoryIndexer {
       score: 1.0,
       sourceType: r.source_type as KnowledgeEntry['sourceType'],
       sourceUrl: r.source_url || undefined,
+      ogImage: r.og_image || undefined,
       createdAt: r.created_at,
     }));
   }
@@ -449,7 +501,7 @@ export class MemoryIndexer {
     const escaped = query.replace(/"/g, '""');
     try {
       const rows = this.db.query(`
-        SELECT k.id, k.title, k.summary, k.source_type, k.source_url, k.created_at,
+        SELECT k.id, k.title, k.summary, k.source_type, k.source_url, k.og_image, k.created_at,
                bm25(knowledge_fts) as score
         FROM knowledge_fts f
         JOIN knowledge k ON k.rowid = f.rowid
@@ -466,6 +518,7 @@ export class MemoryIndexer {
         score: Math.abs(r.score as number),
         sourceType: (r.source_type as string) as KnowledgeEntry['sourceType'],
         sourceUrl: (r.source_url as string) || undefined,
+        ogImage: (r.og_image as string) || undefined,
         createdAt: r.created_at as string,
       }));
     } catch {

@@ -45,6 +45,7 @@ Quick reference to all project knowledge. Start here when beginning a new sessio
 ### Backend
 - **MCP Loader stdio transport** (Feb 12) — See `bugs/fix-mcp-loader-stdio-transport-missing.md`
 - **Cron double push + no deep link** (Feb 16) — See `bugs/fix-cron-double-push-missing-sessionid.md`
+- **Session mixing: cron vs chat** (Mar 8) — See `bugs/fix-session-mixing-cron-vs-chat.md`
 
 ## Patterns
 

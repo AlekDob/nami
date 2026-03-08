@@ -29,6 +29,7 @@ import { generateShoppingList } from './shopping-list.js';
 import { macFileRead, macExec } from './mac-remote.js';
 import { createAppleReminder } from './apple-reminder.js';
 import { createLocalCommand, createAICommand } from './local-command.js';
+import { youtubeTranscript } from './youtube.js';
 import {
   quackStatus,
   quackAgents,
@@ -75,6 +76,7 @@ export const coreTools = {
   redditSearch,
   redditUser,
   redditPostComments,
+  youtubeTranscript,
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

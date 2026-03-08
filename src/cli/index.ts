@@ -344,12 +344,15 @@ async function main() {
     if (daemonRunning) {
       console.log(`  ${c.dim}API server already running on port ${apiPort} (daemon)${c.reset}`);
     } else {
+      // Brain: fix-session-mixing-cron-vs-chat
+      // Share the SAME SessionStore instance to avoid race condition on index.json
       startApiServer({
         agent,
         scheduler,
         soul: agent.getSoulLoader(),
         port: apiPort,
         dataDir,
+        sessions,
       });
     }
   }

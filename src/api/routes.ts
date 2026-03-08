@@ -57,15 +57,14 @@ const postChat: Handler = async (req, { agent, sessions }) => {
     content: m.content,
   })) as ModelMessage[];
 
+  // Brain: fix-session-mixing-cron-vs-chat
+  // Per-call onToolUse — no more instance-level callback corruption
   const toolsUsed: string[] = [];
-  const previousCallback = agent.onToolUse;
-  agent.onToolUse = (toolName: string) => {
-    toolsUsed.push(toolName);
-    if (previousCallback) previousCallback(toolName);
-  };
-
-  const text = await agent.run(msgs);
-  agent.onToolUse = previousCallback;
+  const text = await agent.run(msgs, {
+    onToolUse: (toolName: string) => {
+      toolsUsed.push(toolName);
+    },
+  });
   const stats = agent.lastRunStats;
   // Persist to session
   let sessionId = body.sessionId;
@@ -429,6 +428,110 @@ function route(method: string, path: string, handler: Handler): Route {
   };
 }
 
+// ---------- Knowledge (Brain) Handlers ----------
+
+const getKnowledge: Handler = async (req, { agent }) => {
+  const url = new URL(req.url);
+  const q = url.searchParams.get('q') || '';
+  const tagsParam = url.searchParams.get('tags') || '';
+  const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+  const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+  const tags = tagsParam ? tagsParam.split(',').map(t => t.trim()) : undefined;
+  const store = agent.getMemoryStore();
+
+  let entries;
+  if (q) {
+    entries = await store.searchKnowledge(q, tags, limit + offset);
+    entries = entries.slice(offset);
+  } else {
+    entries = store.recentKnowledge(limit + offset).slice(offset);
+    if (tags && tags.length > 0) {
+      const tagSet = new Set(tags);
+      entries = entries.filter(e => e.tags.some(t => tagSet.has(t)));
+    }
+  }
+  return json({ entries: entries.slice(0, limit), total: entries.length });
+};
+
+const getKnowledgeById: Handler = async (req, { agent }, params) => {
+  const id = params.id;
+  if (!id) return err('id required', 400);
+  const entry = agent.getMemoryStore().getKnowledge(id);
+  if (!entry) return err('Not found', 404);
+  return json(entry);
+};
+
+const deleteKnowledgeById: Handler = async (req, { agent }, params) => {
+  const id = params.id;
+  if (!id) return err('id required', 400);
+  agent.getMemoryStore().deleteKnowledge(id);
+  return json({ success: true });
+};
+
+const patchKnowledgeTags: Handler = async (req, { agent }, params) => {
+  const id = params.id;
+  if (!id) return err('id required', 400);
+  const body = (await req.json()) as { add?: string[]; remove?: string[] };
+  await agent.getMemoryStore().tagKnowledge(
+    id,
+    body.add || [],
+    body.remove || [],
+  );
+  const entry = agent.getMemoryStore().getKnowledge(id);
+  return json({ success: true, tags: entry?.tags || [] });
+};
+
+const getKnowledgeGraph: Handler = async (req, { agent }) => {
+  const url = new URL(req.url);
+  const limit = parseInt(url.searchParams.get('limit') || '100', 10);
+  const store = agent.getMemoryStore();
+  const entries = store.recentKnowledge(limit);
+  const tags = store.listTagsWithCount();
+  const nodes = entries.map(e => ({
+    id: e.id, label: e.title, type: 'entry' as const,
+  }));
+  for (const t of tags) {
+    nodes.push({ id: `tag:${t.name}`, label: t.name, type: 'tag' as const });
+  }
+  const links: Array<{ source: string; target: string }> = [];
+  for (const e of entries) {
+    for (const t of e.tags) {
+      links.push({ source: e.id, target: `tag:${t}` });
+    }
+  }
+  return json({ nodes, links });
+};
+
+// ---------- Tags Handlers ----------
+
+const getTags: Handler = async (_req, { agent }) => {
+  const tags = agent.getMemoryStore().listTagsWithCount();
+  return json({ tags });
+};
+
+const patchTagRename: Handler = async (req, { agent }, params) => {
+  const name = decodeURIComponent(params.name || '');
+  if (!name) return err('name required', 400);
+  const body = (await req.json()) as { newName: string };
+  if (!body.newName) return err('newName required', 400);
+  agent.getMemoryStore().renameTag(name, body.newName);
+  return json({ success: true });
+};
+
+const postTagMerge: Handler = async (req, { agent }) => {
+  const body = (await req.json()) as { keep: string; merge: string };
+  if (!body.keep || !body.merge) return err('keep and merge required', 400);
+  agent.getMemoryStore().mergeTags(body.keep, body.merge);
+  return json({ success: true });
+};
+
+const deleteTagByName: Handler = async (req, { agent }, params) => {
+  const name = decodeURIComponent(params.name || '');
+  if (!name) return err('name required', 400);
+  agent.getMemoryStore().deleteTag(name);
+  return json({ success: true });
+};
+
 const routes: Route[] = [
   route('POST', '/api/chat', postChat),
   route('POST', '/api/command', postCommand),
@@ -456,6 +559,15 @@ const routes: Route[] = [
   route('GET', '/api/creations/:id', getCreationById),
   route('GET', '/api/creations/:id/preview', getCreationPreviewHandler),
   route('DELETE', '/api/creations/:id', deleteCreationHandler),
+  route('GET', '/api/knowledge', getKnowledge),
+  route('GET', '/api/knowledge/graph', getKnowledgeGraph),
+  route('GET', '/api/knowledge/:id', getKnowledgeById),
+  route('DELETE', '/api/knowledge/:id', deleteKnowledgeById),
+  route('PATCH', '/api/knowledge/:id/tags', patchKnowledgeTags),
+  route('GET', '/api/tags', getTags),
+  route('PATCH', '/api/tags/:name/rename', patchTagRename),
+  route('POST', '/api/tags/merge', postTagMerge),
+  route('DELETE', '/api/tags/:name', deleteTagByName),
   route('GET', '/api/keys', getKeys),
   route('PUT', '/api/keys', putKey),
   route('DELETE', '/api/keys', deleteKey),

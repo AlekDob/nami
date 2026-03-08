@@ -5,6 +5,7 @@ import { createEmbeddingProvider } from './embeddings.js';
 import type { KnowledgeEntry, KnowledgeResult, MemoryConfig, SearchResult } from './types.js';
 import { DEFAULT_MEMORY_CONFIG } from './types.js';
 import { randomUUID } from 'crypto';
+import { fetchOgMetadata } from '../utils/og-fetch.js';
 
 const MAX_PROMPT_BYTES = 4096;
 
@@ -210,7 +211,13 @@ export class MemoryStore {
 
   async saveKnowledge(entry: Omit<KnowledgeEntry, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
     const id = randomUUID();
-    await this.indexer.saveKnowledge({ ...entry, id });
+    // Fetch OG metadata for link entries with a sourceUrl
+    let ogImage = entry.ogImage;
+    if (!ogImage && entry.sourceUrl && entry.sourceType === 'link') {
+      const og = await fetchOgMetadata(entry.sourceUrl);
+      ogImage = og.ogImage;
+    }
+    await this.indexer.saveKnowledge({ ...entry, ogImage, id });
     return id;
   }
 
@@ -229,6 +236,30 @@ export class MemoryStore {
 
   listTags(): string[] {
     return this.indexer.listTags();
+  }
+
+  listTagsWithCount(): Array<{ name: string; count: number }> {
+    return this.indexer.listTagsWithCount();
+  }
+
+  recentKnowledge(limit: number): KnowledgeResult[] {
+    return this.indexer.recentKnowledge(limit);
+  }
+
+  deleteKnowledge(id: string): boolean {
+    return this.indexer.deleteKnowledge(id);
+  }
+
+  renameTag(oldName: string, newName: string): boolean {
+    return this.indexer.renameTag(oldName, newName);
+  }
+
+  mergeTags(keep: string, merge: string): boolean {
+    return this.indexer.mergeTags(keep, merge);
+  }
+
+  deleteTag(name: string): boolean {
+    return this.indexer.deleteTag(name);
   }
 
   close(): void {
