@@ -50,13 +50,20 @@ Use `.transition()` on the specific views being inserted/removed. Transitions ar
 - `.animation()` on List
 - `.animation()` on any parent of a lazy container
 - Multiple `.onAppear` animations firing simultaneously when loading pre-existing data
+- **`withAnimation` wrapping `scrollTo` calls** — animated scrollTo inside LazyVStack on macOS triggers cell recycling → @State reset → layout cascade
+- **`.textSelection(.enabled)` on Text views** — on macOS, creates NSTextView-backed selection infrastructure per instance. Rapid create/destroy during scroll = CPU 100%. Remove it on macOS (use copy button instead)
+- **`TimelineView(.animation)` / continuous Canvas** — render loops inside LazyVStack cause CPU saturation during scroll. Use static fallback on macOS
+- **Implicit `.animation(.spring, value:)` on child views** — spring animation on ToolPill/similar children inside LazyVStack propagates layout recalc
 
 ## Prevention Checklist
 
 - [ ] Never apply .animation() to LazyVStack, LazyHGrid, List, or their parent ScrollView
+- [ ] Never use `withAnimation` wrapping `scrollTo` on macOS inside a LazyVStack
+- [ ] Never use `.textSelection(.enabled)` on individual Text views inside LazyVStack on macOS
+- [ ] Never put `TimelineView(.animation)` or continuous Canvas render loops inside LazyVStack on macOS
 - [ ] Use .transition() on individual inserting/removing views
 - [ ] Skip entrance animations for pre-loaded data (use a flag like `skipEntrance`)
-- [ ] Keep .textSelection(.enabled) at ONE level only (outermost container)
+- [ ] Remove opacity/offset entrance effects on macOS (LazyVStack recycles → @State resets → flash)
 - [ ] Profile with Instruments > SwiftUI > View Body calls to detect excessive re-evaluations
 
 ## Why This Matters
