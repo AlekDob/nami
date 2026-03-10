@@ -72,7 +72,8 @@ export type WsServerMessage =
   | { type: 'notification'; title: string; body: string }
   | { type: "tool_use"; tool: string }
   | { type: "creation"; id: string; name: string; creationType: string }
-  | { type: "shopping_list"; listName: string; items: ShoppingListItem[] };
+  | { type: "shopping_list"; listName: string; items: ShoppingListItem[] }
+  | { type: "knowledge_changed"; action: 'created' | 'updated' | 'deleted'; id: string; title?: string };
 
 // ---------- Shopping List ----------
 

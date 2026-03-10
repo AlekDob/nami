@@ -42,6 +42,18 @@ export function broadcastCreation(
   }
 }
 
+export function broadcastKnowledgeChanged(
+  action: 'created' | 'updated' | 'deleted',
+  id: string,
+  title?: string,
+): void {
+  const msg: WsServerMessage = { type: 'knowledge_changed', action, id, title };
+  const payload = JSON.stringify(msg);
+  for (const ws of connections.values()) {
+    ws.send(payload);
+  }
+}
+
 export function broadcastNotification(
   title: string,
   body: string,

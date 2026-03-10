@@ -18,6 +18,7 @@ import type { StoredCommand } from '../tools/local-command.js';
 import { registerDevice, unregisterDevice } from '../channels/apns.js';
 import { listCreations, getCreation, getCreationPreview, deleteCreation } from './creations.js';
 import { getProviderKeys, setProviderKey, deleteProviderKey, getMcpServers } from './env-writer.js';
+import { broadcastKnowledgeChanged } from './websocket.js';
 import type { SessionStore } from '../sessions/store.js';
 
 const startedAt = Date.now();
@@ -472,6 +473,7 @@ const postKnowledge: Handler = async (req, { agent }) => {
     sourceUrl: sourceUrl as string | undefined,
     ogImage: ogImage as string | undefined,
   });
+  broadcastKnowledgeChanged('created', id, title as string);
   return json({ id }, 201);
 };
 
@@ -500,6 +502,7 @@ const putKnowledge: Handler = async (req, { agent }, params) => {
   const updated = await agent.getMemoryStore().updateKnowledge(id, fields as never);
   if (!updated) return err('Not found', 404);
   const entry = agent.getMemoryStore().getKnowledge(id);
+  broadcastKnowledgeChanged('updated', id, entry?.title);
   return json(entry);
 };
 
@@ -514,7 +517,9 @@ const getKnowledgeById: Handler = async (req, { agent }, params) => {
 const deleteKnowledgeById: Handler = async (req, { agent }, params) => {
   const id = params.id;
   if (!id) return err('id required', 400);
+  const entry = agent.getMemoryStore().getKnowledge(id);
   agent.getMemoryStore().deleteKnowledge(id);
+  broadcastKnowledgeChanged('deleted', id, entry?.title);
   return json({ success: true });
 };
 
@@ -528,6 +533,7 @@ const patchKnowledgeTags: Handler = async (req, { agent }, params) => {
     body.remove || [],
   );
   const entry = agent.getMemoryStore().getKnowledge(id);
+  broadcastKnowledgeChanged('updated', id, entry?.title);
   return json({ success: true, tags: entry?.tags || [] });
 };
 
