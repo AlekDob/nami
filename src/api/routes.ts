@@ -475,6 +475,34 @@ const postKnowledge: Handler = async (req, { agent }) => {
   return json({ id }, 201);
 };
 
+const putKnowledge: Handler = async (req, { agent }, params) => {
+  const id = params.id;
+  if (!id) return err('id required', 400);
+  const body = (await req.json()) as Record<string, unknown>;
+  const fields: Record<string, unknown> = {};
+  if (body.title !== undefined) fields.title = body.title;
+  if (body.content !== undefined) fields.content = body.content;
+  if (body.summary !== undefined) fields.summary = body.summary;
+  if (body.sourceType !== undefined) {
+    const validTypes = ['note', 'link', 'concept', 'quote'];
+    if (!validTypes.includes(body.sourceType as string)) {
+      return err(`sourceType must be one of: ${validTypes.join(', ')}`, 400);
+    }
+    fields.sourceType = body.sourceType;
+  }
+  if (body.tags !== undefined) {
+    if (!Array.isArray(body.tags)) return err('tags must be an array', 400);
+    fields.tags = body.tags;
+  }
+  if (body.sourceUrl !== undefined) fields.sourceUrl = body.sourceUrl;
+  if (body.ogImage !== undefined) fields.ogImage = body.ogImage;
+  if (Object.keys(fields).length === 0) return err('No fields to update', 400);
+  const updated = await agent.getMemoryStore().updateKnowledge(id, fields as never);
+  if (!updated) return err('Not found', 404);
+  const entry = agent.getMemoryStore().getKnowledge(id);
+  return json(entry);
+};
+
 const getKnowledgeById: Handler = async (req, { agent }, params) => {
   const id = params.id;
   if (!id) return err('id required', 400);
@@ -592,6 +620,7 @@ const routes: Route[] = [
   route('POST', '/api/knowledge', postKnowledge),
   route('GET', '/api/knowledge/graph', getKnowledgeGraph),
   route('GET', '/api/knowledge/:id', getKnowledgeById),
+  route('PUT', '/api/knowledge/:id', putKnowledge),
   route('DELETE', '/api/knowledge/:id', deleteKnowledgeById),
   route('PATCH', '/api/knowledge/:id/tags', patchKnowledgeTags),
   route('GET', '/api/tags', getTags),

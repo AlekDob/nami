@@ -69,7 +69,7 @@ Live on the Hetzner server, port 3000. Requires `NAMI_API_KEY` in `.env`.
   - `GET /api/memory/search?q=` / `GET /api/memory/lines` / `GET /api/memory/recent` — memory browsing
   - `GET|POST|DELETE|PATCH /api/jobs` — scheduled tasks CRUD
   - `GET|PUT /api/soul` — personality editor
-  - `GET|POST|DELETE /api/knowledge` + `PATCH .../tags` + `GET .../graph` — brain CRUD
+  - `GET|POST|PUT|DELETE /api/knowledge` + `PATCH .../tags` + `GET .../graph` — brain CRUD
   - `GET|PATCH|POST|DELETE /api/tags` — tag management
   - `GET|POST|DELETE /api/creations` — AI-generated artifacts
   - `GET|PUT|DELETE /api/keys` — provider key management

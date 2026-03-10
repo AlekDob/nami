@@ -365,6 +365,39 @@ export class MemoryIndexer {
     return entry.id;
   }
 
+  async updateKnowledge(id: string, fields: Partial<Omit<KnowledgeEntry, 'id' | 'createdAt' | 'updatedAt'>>): Promise<boolean> {
+    const existing = this.getKnowledge(id);
+    if (!existing) return false;
+    const now = new Date().toISOString();
+    const merged = { ...existing, ...fields, updatedAt: now };
+
+    this.db.prepare(`
+      UPDATE knowledge SET title = ?, content = ?, summary = ?, source_url = ?, og_image = ?, source_type = ?, updated_at = ?
+      WHERE id = ?
+    `).run(merged.title, merged.content, merged.summary, merged.sourceUrl ?? null, merged.ogImage ?? null, merged.sourceType, now, id);
+
+    // Re-index FTS
+    const row = this.db.query(`SELECT rowid FROM knowledge WHERE id = ?`).get(id) as { rowid: number } | null;
+    if (row) {
+      try { this.db.prepare(`DELETE FROM knowledge_fts WHERE rowid = ?`).run(row.rowid); } catch { /* ok */ }
+      this.db.prepare(`INSERT INTO knowledge_fts (rowid, title, content, summary) VALUES (?, ?, ?, ?)`)
+        .run(row.rowid, merged.title, merged.content, merged.summary);
+    }
+
+    // Replace tags if provided
+    if (fields.tags) {
+      this.db.prepare(`DELETE FROM knowledge_tags WHERE knowledge_id = ?`).run(id);
+      this.addTags(id, fields.tags);
+    }
+
+    // Re-index vector if title/summary changed
+    if ((fields.title || fields.summary) && this.embedFn && this.dimensions) {
+      await this.indexKnowledgeVector(id, `${merged.title} ${merged.summary}`);
+    }
+
+    return true;
+  }
+
   getKnowledge(id: string): KnowledgeEntry | null {
     const row = this.db.query(`SELECT * FROM knowledge WHERE id = ?`).get(id) as Record<string, string> | null;
     if (!row) return null;

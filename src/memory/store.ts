@@ -221,6 +221,10 @@ export class MemoryStore {
     return id;
   }
 
+  async updateKnowledge(id: string, fields: Partial<Omit<KnowledgeEntry, 'id' | 'createdAt' | 'updatedAt'>>): Promise<boolean> {
+    return this.indexer.updateKnowledge(id, fields);
+  }
+
   async searchKnowledge(query: string, tags?: string[], limit?: number): Promise<KnowledgeResult[]> {
     return this.indexer.searchKnowledge(query, tags, limit);
   }
