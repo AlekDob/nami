@@ -39,6 +39,7 @@ Quick reference to all project knowledge. Start here when beginning a new sessio
 - **macOS freeze on long code blocks** (Feb 18) — See `bugs/fix-macos-freeze-long-code-blocks.md`
 
 ### Platform
+- **iOS new conversation overscroll** (Mar 8) — See `bugs/fix-ios-new-conversation-scroll-overscroll.md`
 - **WKWebView macOS sandbox** (Feb 5) — See `bugs/fix-wkwebview-macos-sandbox-loadhtmlstring.md`
 - **Preview endpoint 401** (Feb 5) — See `bugs/fix-preview-endpoint-auth-bypass.md`
 
@@ -46,6 +47,7 @@ Quick reference to all project knowledge. Start here when beginning a new sessio
 - **MCP Loader stdio transport** (Feb 12) — See `bugs/fix-mcp-loader-stdio-transport-missing.md`
 - **Cron double push + no deep link** (Feb 16) — See `bugs/fix-cron-double-push-missing-sessionid.md`
 - **Session mixing: cron vs chat** (Mar 8) — See `bugs/fix-session-mixing-cron-vs-chat.md`
+- **Knowledge Graph JSON mismatch** (Mar 8) — See `bugs/fix-knowledge-graph-swift-decoding-mismatch.md`
 
 ## Patterns
 
@@ -77,6 +79,7 @@ Quick reference to all project knowledge. Start here when beginning a new sessio
 | **SFSpeechRecognizer before WhisperKit** | `decisions/decision-sfspeechrecognizer-before-whisperkit.md` | Active |
 | **Open Source + Services model** | `decisions/decision-open-source-services-model.md` | Approved |
 | **Repo separation public/private** | `decisions/decision-repo-separation-public-private.md` | Implemented |
+| **Nami Remote API skill** | `decisions/decision-nami-remote-api-skill.md` | Implemented |
 
 ## Gotchas
 
@@ -116,4 +119,4 @@ Quick reference to all project knowledge. Start here when beginning a new sessio
 - iOS 17+ / iPadOS 17+ / macOS 14+
 
 ## Last Updated
-2026-03-08
+2026-03-10

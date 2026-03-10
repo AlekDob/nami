@@ -62,13 +62,21 @@ Live on the Hetzner server, port 3000. Requires `NAMI_API_KEY` in `.env`.
 
 - **Files:** `src/api/` — `types.ts`, `auth.ts`, `routes.ts`, `websocket.ts`, `server.ts`
 - **Auth:** Bearer token (constant-time comparison), WebSocket via query param `?key=`
-- **Endpoints:** 12 REST + 1 WebSocket
+- **Endpoints:** ~30 REST + 1 WebSocket (see `@skill:nami-remote` for full reference)
   - `POST /api/chat` — agent.run()
   - `GET /api/status` — uptime, model, RAM
-  - `GET /api/models` / `PUT /api/model` — model management
-  - `GET /api/memory/search?q=` / `GET /api/memory/lines` — memory browsing
+  - `GET /api/models` / `GET /api/models/list` / `PUT /api/model` — model management
+  - `GET /api/memory/search?q=` / `GET /api/memory/lines` / `GET /api/memory/recent` — memory browsing
   - `GET|POST|DELETE|PATCH /api/jobs` — scheduled tasks CRUD
   - `GET|PUT /api/soul` — personality editor
+  - `GET|POST|DELETE /api/knowledge` + `PATCH .../tags` + `GET .../graph` — brain CRUD
+  - `GET|PATCH|POST|DELETE /api/tags` — tag management
+  - `GET|POST|DELETE /api/creations` — AI-generated artifacts
+  - `GET|PUT|DELETE /api/keys` — provider key management
+  - `GET|POST|DELETE /api/commands` — AI/local commands
+  - `GET /api/integrations/mcp` — MCP servers
+  - `POST|DELETE /api/register-device` — APNs push tokens
+  - `GET|POST /api/shopping-list` — shopping list
   - `GET /api/health` — no auth needed
 - **WebSocket** (`ws://server:3000/ws?key=KEY`):
   - Client sends: `chat` (messages array) or `ping`
@@ -172,6 +180,7 @@ documentation/
 ```
 
 ### Critical References
+- **Nami Remote API (full reference)**: `@skill:nami-remote` — all ~30 REST endpoints + WebSocket, usable from any project
 - **Model Providers (Z.AI, MiniMax, etc.)**: `documentation/guide/server/model-providers.md`
 - **Mac Remote Access**: `documentation/patterns/pattern-mac-remote-access-tailscale-agent.md`
 - **WebSocket reliability**: `documentation/patterns/pattern-session-as-source-of-truth-mobile-websocket.md`

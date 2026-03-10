@@ -453,6 +453,28 @@ const getKnowledge: Handler = async (req, { agent }) => {
   return json({ entries: entries.slice(0, limit), total: entries.length });
 };
 
+const postKnowledge: Handler = async (req, { agent }) => {
+  const body = (await req.json()) as Record<string, unknown>;
+  const { title, content, summary, sourceType, tags, sourceUrl, ogImage } = body;
+  if (!title || !content || !summary || !sourceType || !Array.isArray(tags)) {
+    return err('title, content, summary, sourceType (note|link|concept|quote), tags[] required', 400);
+  }
+  const validTypes = ['note', 'link', 'concept', 'quote'];
+  if (!validTypes.includes(sourceType as string)) {
+    return err(`sourceType must be one of: ${validTypes.join(', ')}`, 400);
+  }
+  const id = await agent.getMemoryStore().saveKnowledge({
+    title: title as string,
+    content: content as string,
+    summary: summary as string,
+    sourceType: sourceType as 'note' | 'link' | 'concept' | 'quote',
+    tags: tags as string[],
+    sourceUrl: sourceUrl as string | undefined,
+    ogImage: ogImage as string | undefined,
+  });
+  return json({ id }, 201);
+};
+
 const getKnowledgeById: Handler = async (req, { agent }, params) => {
   const id = params.id;
   if (!id) return err('id required', 400);
@@ -481,25 +503,32 @@ const patchKnowledgeTags: Handler = async (req, { agent }, params) => {
   return json({ success: true, tags: entry?.tags || [] });
 };
 
+// Brain: fix-knowledge-graph-swift-decoding-mismatch
 const getKnowledgeGraph: Handler = async (req, { agent }) => {
   const url = new URL(req.url);
   const limit = parseInt(url.searchParams.get('limit') || '100', 10);
   const store = agent.getMemoryStore();
   const entries = store.recentKnowledge(limit);
-  const tags = store.listTagsWithCount();
-  const nodes = entries.map(e => ({
-    id: e.id, label: e.title, type: 'entry' as const,
-  }));
-  for (const t of tags) {
-    nodes.push({ id: `tag:${t.name}`, label: t.name, type: 'tag' as const });
-  }
-  const links: Array<{ source: string; target: string }> = [];
-  for (const e of entries) {
-    for (const t of e.tags) {
-      links.push({ source: e.id, target: `tag:${t}` });
+
+  // Build edges between entries sharing tags (with weight + sharedTags)
+  const edges: Array<{
+    source: string; target: string; weight: number; sharedTags: string[];
+  }> = [];
+  for (let i = 0; i < entries.length; i++) {
+    for (let j = i + 1; j < entries.length; j++) {
+      const shared = entries[i].tags.filter(t => entries[j].tags.includes(t));
+      if (shared.length > 0) {
+        edges.push({
+          source: entries[i].id,
+          target: entries[j].id,
+          weight: shared.length,
+          sharedTags: shared,
+        });
+      }
     }
   }
-  return json({ nodes, links });
+
+  return json({ nodes: entries, edges });
 };
 
 // ---------- Tags Handlers ----------
@@ -560,6 +589,7 @@ const routes: Route[] = [
   route('GET', '/api/creations/:id/preview', getCreationPreviewHandler),
   route('DELETE', '/api/creations/:id', deleteCreationHandler),
   route('GET', '/api/knowledge', getKnowledge),
+  route('POST', '/api/knowledge', postKnowledge),
   route('GET', '/api/knowledge/graph', getKnowledgeGraph),
   route('GET', '/api/knowledge/:id', getKnowledgeById),
   route('DELETE', '/api/knowledge/:id', deleteKnowledgeById),
